@@ -1,24 +1,29 @@
 
 """
-app.py
-=========================================
+app_v6.py
+=================================================
 Tamil Nadu Private OmniBus AI Chatbot
-Version 5.0
-Gradio 5.38.2 Compatible
-=========================================
+Professional UI (Version 6.0)
+Compatible with Gradio 5.38.2
+=================================================
 """
 
 import os
 import gradio as gr
 
-from chatbot import BusChatbot
-from config import APP_NAME, APP_VERSION, EXAMPLE_QUERIES, STYLE_FILE
+from chatbot_v6 import BusChatbot
+from config import (
+    APP_NAME,
+    APP_VERSION,
+    EXAMPLE_QUERIES,
+    STYLE_FILE,
+)
 
 bot = BusChatbot()
 
-# -------------------------------------------------
+# ---------------------------------------------------
 # Load CSS (optional)
-# -------------------------------------------------
+# ---------------------------------------------------
 css = ""
 if os.path.exists(STYLE_FILE):
     with open(STYLE_FILE, "r", encoding="utf-8") as f:
@@ -26,12 +31,6 @@ if os.path.exists(STYLE_FILE):
 
 
 def chat(message, history):
-    """
-    Gradio Chatbot(type='messages') callback.
-    history is a list of:
-    {"role":"user","content":"..."}
-    {"role":"assistant","content":"..."}
-    """
     history = history or []
 
     if not message.strip():
@@ -40,20 +39,18 @@ def chat(message, history):
     answer = bot.reply(message)
 
     history.append(
-        {
-            "role": "user",
-            "content": message,
-        }
+        {"role": "user", "content": message}
     )
 
     history.append(
-        {
-            "role": "assistant",
-            "content": answer,
-        }
+        {"role": "assistant", "content": answer}
     )
 
     return "", history
+
+
+def quick_query(query, history):
+    return chat(query, history)
 
 
 with gr.Blocks(
@@ -65,27 +62,30 @@ with gr.Blocks(
     gr.Markdown(f"""
 # 🚌 {APP_NAME}
 
-Search private OmniBus services using natural language.
+### AI-powered semantic search for Tamil Nadu Private OmniBus services
 
-### Try asking:
-- Show buses from Chennai to Madurai
+Search using natural language.
+
+Examples:
+
+- Chennai to Madurai
 - Cheapest bus under 1000
-- Luxury Sleeper with WiFi
-- Night Volvo bus
+- Luxury Sleeper to Bangalore
+- Night bus with WiFi
+- Best rated Volvo bus
 """)
 
     chatbot = gr.Chatbot(
         type="messages",
         height=560,
         label="AI Bus Assistant",
-        bubble_full_width=False,
     )
 
     with gr.Row():
         textbox = gr.Textbox(
-            placeholder="Type your bus query here...",
-            lines=1,
+            placeholder="Ask about buses...",
             scale=8,
+            lines=1,
         )
 
         send = gr.Button(
@@ -94,30 +94,133 @@ Search private OmniBus services using natural language.
             scale=1,
         )
 
+    gr.Markdown("## 🚀 Quick Search")
+
+    with gr.Row():
+        cheapest = gr.Button("💰 Cheapest")
+        luxury = gr.Button("🛏 Luxury Sleeper")
+        wifi = gr.Button("📶 WiFi")
+        night = gr.Button("🌙 Night Bus")
+
+    with gr.Row():
+        volvo = gr.Button("🚌 Volvo")
+        best = gr.Button("⭐ Best Rated")
+        chennai = gr.Button("📍 Chennai → Madurai")
+        bangalore = gr.Button("🏙 Chennai → Bengaluru")
+
     clear = gr.Button("🧹 Clear Chat")
 
     gr.Examples(
-        examples=[[q] for q in EXAMPLE_QUERIES],
+        examples=[[x] for x in EXAMPLE_QUERIES],
         inputs=textbox,
     )
 
     send.click(
-        fn=chat,
-        inputs=[textbox, chatbot],
-        outputs=[textbox, chatbot],
+        chat,
+        [textbox, chatbot],
+        [textbox, chatbot],
         show_progress="full",
     )
 
     textbox.submit(
-        fn=chat,
-        inputs=[textbox, chatbot],
-        outputs=[textbox, chatbot],
+        chat,
+        [textbox, chatbot],
+        [textbox, chatbot],
         show_progress="full",
+    )
+
+    cheapest.click(
+        quick_query,
+        inputs=[
+            gr.State("Cheapest bus"),
+            chatbot,
+        ],
+        outputs=[textbox, chatbot],
+    )
+
+    luxury.click(
+        quick_query,
+        inputs=[
+            gr.State("Luxury Sleeper bus"),
+            chatbot,
+        ],
+        outputs=[textbox, chatbot],
+    )
+
+    wifi.click(
+        quick_query,
+        inputs=[
+            gr.State("Bus with WiFi"),
+            chatbot,
+        ],
+        outputs=[textbox, chatbot],
+    )
+
+    night.click(
+        quick_query,
+        inputs=[
+            gr.State("Night bus"),
+            chatbot,
+        ],
+        outputs=[textbox, chatbot],
+    )
+
+    volvo.click(
+        quick_query,
+        inputs=[
+            gr.State("Volvo bus"),
+            chatbot,
+        ],
+        outputs=[textbox, chatbot],
+    )
+
+    best.click(
+        quick_query,
+        inputs=[
+            gr.State("Best rated bus"),
+            chatbot,
+        ],
+        outputs=[textbox, chatbot],
+    )
+
+    chennai.click(
+        quick_query,
+        inputs=[
+            gr.State("Show buses from Chennai to Madurai"),
+            chatbot,
+        ],
+        outputs=[textbox, chatbot],
+    )
+
+    bangalore.click(
+        quick_query,
+        inputs=[
+            gr.State("Luxury Sleeper bus to Bangalore"),
+            chatbot,
+        ],
+        outputs=[textbox, chatbot],
     )
 
     clear.click(
         lambda: ("", []),
         outputs=[textbox, chatbot],
+    )
+
+    gr.Markdown(
+        """
+---
+### ℹ️ About
+
+**Version:** 6.0
+
+**Backend**
+- FAISS Semantic Search
+- Sentence Transformers
+- Intent Detection
+- Natural Language Search
+
+Built using **Python**, **FAISS**, **Sentence Transformers**, and **Gradio**.
+"""
     )
 
 if __name__ == "__main__":
