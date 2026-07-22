@@ -1,53 +1,41 @@
-import gradio as gr
+"""
+==============================================================
+Tamil Nadu Private Omni Bus AI Chatbot
 
-# ==========================================
-# Theme Colors
-# ==========================================
+Professional Gradio Application
 
-PRIMARY = "#2563EB"
-BACKGROUND = "#0F172A"
-CARD = "#1E293B"
+Version : 2.0
+Part : 1 / 3
 
-# ==========================================
-# Dummy Chat Function
-# (We'll replace this later)
-# ==========================================
+Author : Sugumar R
 
-def chatbot(message, history):
-    reply = f"""### 🤖 Tamil Nadu Private Omni Bus AI
-
-You asked:
-
-**{message}**
-
-✅ Search engine is loading...
-
-In the next step this will search your:
-
-- bus_services.csv
-- documents.pkl
-- bus_index.faiss
+==============================================================
 """
 
-    history.append(
-        {"role": "user", "content": message}
-    )
+import gradio as gr
 
-    history.append(
-        {"role": "assistant", "content": reply}
-    )
+from chatbot import chatbot_response
 
-    return history, ""
+from config import (
+    APP_NAME,
+    APP_VERSION,
+    CHATBOT_HEIGHT,
+    QUICK_QUESTIONS
+)
 
-# ==========================================
+# ==========================================================
 # Custom CSS
-# ==========================================
+# ==========================================================
 
-css = """
+CUSTOM_CSS = """
 
 .gradio-container{
-    max-width:1500px !important;
+    max-width:1450px !important;
     margin:auto;
+}
+
+footer{
+    visibility:hidden;
 }
 
 #header{
@@ -55,130 +43,409 @@ css = """
     padding:20px;
 }
 
-#title{
-    font-size:36px;
-    font-weight:bold;
+#header h1{
+    font-size:34px;
+    margin-bottom:5px;
 }
 
-#subtitle{
-    color:gray;
+#header p{
     font-size:18px;
+    color:#777;
 }
 
-footer{
-    display:none;
+.sidebar-title{
+    font-size:20px;
+    font-weight:bold;
+    margin-bottom:10px;
+}
+
+.feature-box{
+
+    padding:12px;
+
+    border-radius:12px;
+
+    background:#f7f7f7;
+
+    margin-top:20px;
+
+}
+
+.quick-btn{
+
+    width:100%;
+
 }
 
 """
 
-# ==========================================
+# ==========================================================
 # UI
-# ==========================================
+# ==========================================================
 
 with gr.Blocks(
-    title="Tamil Nadu Private Omni Bus AI Chatbot",
-    css=css,
-    theme=gr.themes.Soft()
+
+    title=APP_NAME,
+
+    css=CUSTOM_CSS,
+
+    theme=gr.themes.Soft(
+
+        primary_hue="blue",
+
+        secondary_hue="slate"
+
+    )
+
 ) as demo:
 
-    gr.HTML("""
+    # ======================================================
+    # Header
+    # ======================================================
 
-    <div id="header">
+    gr.HTML(
 
-    <div id="title">
+f"""
 
-    🚌 Tamil Nadu Private Omni Bus AI Chatbot
+<div id="header">
 
-    </div>
+<h1>🚌 {APP_NAME}</h1>
 
-    <div id="subtitle">
+<p>
 
-    Find the Best Private Omni Buses Using AI
+Find the Best Tamil Nadu Private Omni Bus using AI
 
-    </div>
+</p>
 
-    </div>
+</div>
 
-    """)
+"""
+
+)
+
+    # ======================================================
+    # Main Layout
+    # ======================================================
 
     with gr.Row():
 
-        # ===========================
+        # ==================================================
         # Sidebar
-        # ===========================
+        # ==================================================
 
         with gr.Column(scale=1):
 
-            gr.Markdown("## 🚍 Quick Questions")
+            gr.Markdown("## 💡 Quick Questions")
 
-            examples = [
+            quick_buttons = []
 
-                "Show buses from Chennai to Madurai",
+            for question in QUICK_QUESTIONS:
 
-                "Cheapest bus",
+                button = gr.Button(
 
-                "Luxury Sleeper bus",
+                    value=question,
 
-                "Night bus",
+                    elem_classes="quick-btn",
 
-                "Bus with WiFi",
+                    variant="secondary"
 
-                "Bus with Charging",
+                )
 
-                "Bus under ₹1000",
+                quick_buttons.append(button)
 
-                "Best rated bus",
+            gr.Markdown("---")
 
-                "AC Sleeper",
+            gr.Markdown("""
 
-                "Volvo bus"
+### Supported Features
 
-            ]
+✅ Route Search
 
-            for ex in examples:
-                gr.Button(ex, size="sm")
+✅ Cheapest Bus
 
-        # ===========================
-        # Chat Area
-        # ===========================
+✅ Luxury Bus
+
+✅ AC Sleeper
+
+✅ Volvo
+
+✅ Amenities
+
+✅ Timings
+
+✅ Operators
+
+✅ Ratings
+
+✅ Available Seats
+
+""")
+
+        # ==================================================
+        # Chat Section
+        # ==================================================
 
         with gr.Column(scale=4):
 
-            chatbot_ui = gr.Chatbot(
-                type="messages",
-                height=600,
+            chatbot = gr.Chatbot(
+
+                label="AI Bus Assistant",
+
+                height=CHATBOT_HEIGHT,
+
+                bubble_full_width=False,
+
                 show_copy_button=True,
-                avatar_images=(None, None)
+
+                type="messages"
+
+            )
+
+            history = gr.State([])
+
+            user_input = gr.Textbox(
+
+                placeholder="Ask your question here...",
+
+                lines=2,
+
+                show_label=False,
+
+                autofocus=True
+
             )
 
             with gr.Row():
 
-                textbox = gr.Textbox(
-                    placeholder="Ask anything about buses...",
-                    show_label=False,
-                    scale=8
+                send_btn = gr.Button(
+
+                    "📨 Send",
+
+                    variant="primary"
+
                 )
 
-                send = gr.Button(
-                    "➤",
-                    variant="primary",
-                    scale=1
+                clear_btn = gr.Button(
+
+                    "🗑 Clear",
+
+                    variant="secondary"
+
                 )
 
-    # ===========================
-    # Events
-    # ===========================
+                retry_btn = gr.Button(
 
-    send.click(
-        chatbot,
-        inputs=[textbox, chatbot_ui],
-        outputs=[chatbot_ui, textbox]
+                    "🔄 Retry",
+
+                    variant="secondary"
+
+                )
+
+# ==========================================================
+# Chat Functions
+# ==========================================================
+
+def send_message(message, history):
+    """
+    Send a message to the chatbot.
+    """
+
+    if history is None:
+        history = []
+
+    if message is None:
+        return "", history
+
+    message = message.strip()
+
+    if message == "":
+        return "", history
+
+    try:
+
+        response = chatbot_response(message)
+
+    except Exception as e:
+
+        response = f"❌ Error\n\n{str(e)}"
+
+    history.append(
+        {
+            "role": "user",
+            "content": message
+        }
     )
 
-    textbox.submit(
-        chatbot,
-        inputs=[textbox, chatbot_ui],
-        outputs=[chatbot_ui, textbox]
+    history.append(
+        {
+            "role": "assistant",
+            "content": response
+        }
     )
 
-demo.launch()
+    return "", history
+
+
+# ==========================================================
+# Quick Question Handler
+# ==========================================================
+
+def quick_question(question, history):
+    """
+    Handle quick question buttons.
+    """
+
+    return send_message(question, history)
+
+
+# ==========================================================
+# Retry
+# ==========================================================
+
+def retry(history):
+
+    if history is None:
+        return history
+
+    if len(history) < 2:
+        return history
+
+    last_question = None
+
+    for item in reversed(history):
+
+        if item["role"] == "user":
+
+            last_question = item["content"]
+
+            break
+
+    if last_question is None:
+        return history
+
+    # Remove last assistant reply
+    if history[-1]["role"] == "assistant":
+        history.pop()
+
+    try:
+
+        answer = chatbot_response(last_question)
+
+    except Exception as e:
+
+        answer = str(e)
+
+    history.append(
+        {
+            "role": "assistant",
+            "content": answer
+        }
+    )
+
+    return history
+
+
+# ==========================================================
+# Clear Chat
+# ==========================================================
+
+def clear_chat():
+
+    return [], []
+
+
+# ==========================================================
+# Send Button
+# ==========================================================
+
+send_btn.click(
+
+    fn=send_message,
+
+    inputs=[
+        user_input,
+        history
+    ],
+
+    outputs=[
+        user_input,
+        chatbot
+    ]
+
+)
+
+# ==========================================================
+# Press Enter
+# ==========================================================
+
+user_input.submit(
+
+    fn=send_message,
+
+    inputs=[
+        user_input,
+        history
+    ],
+
+    outputs=[
+        user_input,
+        chatbot
+    ]
+
+)
+
+# ==========================================================
+# Clear Button
+# ==========================================================
+
+clear_btn.click(
+
+    fn=clear_chat,
+
+    outputs=[
+        chatbot,
+        history
+    ]
+
+)
+
+# ==========================================================
+# Retry Button
+# ==========================================================
+
+retry_btn.click(
+
+    fn=retry,
+
+    inputs=history,
+
+    outputs=chatbot
+
+)
+
+# ==========================================================
+# Quick Question Buttons
+# ==========================================================
+
+for button, question in zip(
+    quick_buttons,
+    QUICK_QUESTIONS
+):
+
+    button.click(
+
+        fn=lambda h, q=question: quick_question(q, h),
+
+        inputs=[
+            history
+        ],
+
+        outputs=[
+            user_input,
+            chatbot
+        ]
+
+    )
+
+
+
