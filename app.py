@@ -1,97 +1,95 @@
 
 """
 app.py
-Version 3.0
-Gradio 6.x compatible UI
+=========================================
+Tamil Nadu Private OmniBus AI Chatbot
+Gradio Application (Version 4.0)
+Compatible with Gradio 5.38.2
+=========================================
 """
 
-from pathlib import Path
 import gradio as gr
 
-from chatbot import chatbot_response, WELCOME_MESSAGE
+from chatbot import BusChatbot
+from config import (
+    APP_NAME,
+    APP_VERSION,
+    CHAT_HEIGHT,
+    EXAMPLE_QUERIES,
+    STYLE_FILE,
+)
 
-TITLE = "🚌 Tamil Nadu Private OmniBus AI Chatbot"
-
-EXAMPLES = [
-    "Show buses from Chennai to Madurai",
-    "Luxury Sleeper bus from Bengaluru to Chennai",
-    "Bus under 1000",
-    "Bus with WiFi",
-    "Night bus to Salem",
-    "Best rated bus",
-]
-
-CSS = ""
-css_file = Path("style.css")
-if css_file.exists():
-    CSS = css_file.read_text(encoding="utf-8")
+bot = BusChatbot()
 
 
-def chat(message, history):
+def respond(message, history):
+    reply = bot.reply(message)
     history = history or []
-    if not message.strip():
-        return "", history
-
-    try:
-        reply = chatbot_response(message)
-    except Exception as e:
-        reply = f"❌ Error\n\n{e}"
-
-    history.append({"role": "user", "content": message})
-    history.append({"role": "assistant", "content": reply})
-
+    history.append((message, reply))
     return "", history
 
 
+css = ""
+try:
+    with open(STYLE_FILE, "r", encoding="utf-8") as f:
+        css = f.read()
+except FileNotFoundError:
+    css = ""
+
+
 with gr.Blocks(
-    title=TITLE,
-    css=CSS,
-    fill_height=True,
+    title=f"{APP_NAME} v{APP_VERSION}",
+    css=css,
 ) as demo:
 
-    gr.Markdown(f"# {TITLE}")
-    gr.Markdown(WELCOME_MESSAGE)
+    gr.Markdown(
+        f"""
+# 🚌 {APP_NAME}
+
+Search Tamil Nadu private OmniBus services using natural language.
+
+### Example:
+- Show buses from Chennai to Madurai
+- Cheapest bus under 1000
+- Luxury Sleeper with WiFi
+- Night Volvo bus
+"""
+    )
 
     chatbot = gr.Chatbot(
+        height=CHAT_HEIGHT,
+        type="tuples",
         label="Bus Assistant",
-        height=520,
-        show_copy_button=True,
     )
 
     with gr.Row():
-        textbox = gr.Textbox(
+        msg = gr.Textbox(
             placeholder="Ask about buses...",
-            lines=1,
             scale=8,
+            lines=1,
         )
-        send = gr.Button("Send", variant="primary", scale=1)
 
-    clear = gr.Button("🧹 Clear Chat")
+        send = gr.Button("Send", scale=1)
+
+    clear = gr.ClearButton([msg, chatbot])
 
     gr.Examples(
-        examples=[[q] for q in EXAMPLES],
-        inputs=textbox,
+        examples=[[q] for q in EXAMPLE_QUERIES],
+        inputs=msg,
     )
 
     send.click(
-        chat,
-        inputs=[textbox, chatbot],
-        outputs=[textbox, chatbot],
+        respond,
+        inputs=[msg, chatbot],
+        outputs=[msg, chatbot],
     )
 
-    textbox.submit(
-        chat,
-        inputs=[textbox, chatbot],
-        outputs=[textbox, chatbot],
+    msg.submit(
+        respond,
+        inputs=[msg, chatbot],
+        outputs=[msg, chatbot],
     )
 
-    clear.click(
-        lambda: ("", []),
-        outputs=[textbox, chatbot],
-    )
 
 if __name__ == "__main__":
-    demo.launch(
-        share=True,
-        debug=True,
-    )
+    demo.launch()
