@@ -189,7 +189,16 @@ Search buses using natural language.
 
         with gr.Column(scale=4):
 
-        chatbot = gr.Chatbot(
+    chatbot = gr.Chatbot(
+        type="messages",
+        height=520,
+        label="Conversation",
+        show_copy_button=True,
+    )
+
+    message = gr.Textbox(
+        ...
+    )
             type="messages",
             height=520,
             label="Conversation",
