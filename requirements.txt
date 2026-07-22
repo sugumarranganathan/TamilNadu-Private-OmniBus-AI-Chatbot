@@ -1,0 +1,17 @@
+# ==========================================
+# TamilNadu-Private-OmniBus-AI-Chatbot
+# requirements.txt
+# ==========================================
+
+gradio>=5.0.0
+pandas>=2.2.0
+numpy>=1.26.0
+faiss-cpu>=1.8.0
+sentence-transformers>=3.0.0
+torch>=2.2.0
+transformers>=4.44.0
+scikit-learn>=1.5.0
+huggingface-hub>=0.24.0
+safetensors>=0.4.3
+tqdm>=4.66.0
+Pillow>=10.3.0
