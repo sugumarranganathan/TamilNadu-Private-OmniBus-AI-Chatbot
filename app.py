@@ -55,10 +55,37 @@ def chat(message, history):
 
         response = f"❌ Error\n\n{str(e)}"
 
-    def chat(message, history):
+def chat(message, history):
 
     if history is None:
         history = []
+
+    message = (message or "").strip()
+
+    if not message:
+        return "", history
+
+    try:
+        response = bot.chat(message)
+
+    except Exception as e:
+        response = f"❌ Error\n\n{e}"
+
+    history.append(
+        {
+            "role": "user",
+            "content": message,
+        }
+    )
+
+    history.append(
+        {
+            "role": "assistant",
+            "content": response,
+        }
+    )
+
+    return "", history
 
     message = (message or "").strip()
 
