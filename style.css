@@ -1,0 +1,92 @@
+
+/* ===========================================
+   Tamil Nadu Private OmniBus AI Chatbot
+   style.css
+   =========================================== */
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Main container */
+.gradio-container {
+    max-width: 1200px !important;
+    margin: auto !important;
+}
+
+/* Header */
+h1 {
+    text-align: center;
+    font-weight: 700;
+    color: #0b5ed7;
+    margin-bottom: 10px;
+}
+
+/* Chatbot */
+.message.user {
+    border-radius: 12px;
+}
+
+.message.bot,
+.message.assistant {
+    border-radius: 12px;
+}
+
+/* Textbox */
+textarea,
+input[type="text"] {
+    border-radius: 10px !important;
+}
+
+/* Buttons */
+button {
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+}
+
+/* Examples */
+.examples {
+    margin-top: 10px;
+}
+
+/* Bus card appearance (rendered via Markdown) */
+.bus-card {
+    border: 1px solid #d9d9d9;
+    border-radius: 12px;
+    padding: 14px;
+    margin: 10px 0;
+    background: #ffffff;
+}
+
+.bus-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #0b5ed7;
+}
+
+.bus-route {
+    font-weight: 600;
+}
+
+.bus-fare {
+    color: #198754;
+    font-size: 17px;
+    font-weight: bold;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+
+    .gradio-container {
+        padding: 8px !important;
+    }
+
+    h1 {
+        font-size: 22px;
+    }
+
+    button {
+        width: 100%;
+        margin-top: 6px;
+    }
+}
