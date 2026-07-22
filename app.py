@@ -44,38 +44,22 @@ if os.path.exists(STYLE_FILE):
 
 def chat(message, history):
 
-    if history is None:
-        history = []
-
-    message = str(message).strip()
-
-    if message == "":
-        return "", history
+    history = history or []
 
     try:
-
-        response = bot.chat(message)
-
+        response = bot.reply(message)
     except Exception as e:
-
         response = f"❌ {e}"
 
     history.append(
-        {
-            "role": "user",
-            "content": message,
-        }
+        {"role": "user", "content": message}
     )
 
     history.append(
-        {
-            "role": "assistant",
-            "content": response,
-        }
+        {"role": "assistant", "content": response}
     )
 
     return "", history
-
 
 # =========================================================
 # Clear Chat
