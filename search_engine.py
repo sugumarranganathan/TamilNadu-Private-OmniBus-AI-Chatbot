@@ -1,12 +1,12 @@
+
 """
-===========================================================
-Tamil Nadu Private OmniBus AI Chatbot
-search_engine.py (Version 2.0 - Part 1)
-===========================================================
+search_engine.py
+Production-ready foundation for TamilNadu-Private-OmniBus-AI-Chatbot
 """
 
 import os
 import pickle
+import re
 from typing import Dict, List, Optional
 
 import faiss
@@ -22,296 +22,134 @@ from config import (
     TOP_K,
 )
 
-
-# ==========================================================
-# Globals (Lazy Loading)
-# ==========================================================
-
 _model = None
-_bus_df = None
-_faiss_index = None
+_index = None
 _documents = None
+_df = None
+_lookup = None
 
-
-# ==========================================================
-# Expected CSV Columns
-# ==========================================================
-
-REQUIRED_COLUMNS = [
-    "Bus_ID",
-    "Operator",
-    "Route_ID",
-    "From_City",
-    "To_City",
-    "Bus_Name",
-    "Bus_Type",
-    "Departure_Time",
-    "Arrival_Time",
-    "Duration",
-    "Distance_KM",
-    "Fare",
-    "Boarding_Point",
-    "Dropping_Point",
-    "Seats",
-    "Available_Seats",
-    "Amenities",
-    "Running_Days",
-    "Rating",
-]
-
-
-# ==========================================================
-# Load Embedding Model (Lazy)
-# ==========================================================
 
 def get_model():
     global _model
-
     if _model is None:
-        print("Loading embedding model...")
         _model = SentenceTransformer(EMBEDDING_MODEL)
-
     return _model
 
 
-# ==========================================================
-# Load CSV
-# ==========================================================
+def load_csv():
+    global _df, _lookup
+    if _df is None:
+        _df = pd.read_csv(BUS_CSV)
+        _lookup = {str(r["Bus_ID"]): r.to_dict() for _, r in _df.iterrows()}
+    return _df
 
-def load_bus_data() -> pd.DataFrame:
-    global _bus_df
-
-    if _bus_df is not None:
-        return _bus_df
-
-    if not os.path.exists(BUS_CSV):
-        raise FileNotFoundError(f"CSV not found: {BUS_CSV}")
-
-    df = pd.read_csv(BUS_CSV)
-
-    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
-
-    if missing:
-        raise ValueError(
-            f"Missing columns in CSV:\n{missing}"
-        )
-
-    df["Fare"] = pd.to_numeric(df["Fare"], errors="coerce").fillna(0)
-
-    df["Rating"] = pd.to_numeric(
-        df["Rating"],
-        errors="coerce"
-    ).fillna(0)
-
-    df["Available_Seats"] = pd.to_numeric(
-        df["Available_Seats"],
-        errors="coerce"
-    ).fillna(0)
-
-    df["Seats"] = pd.to_numeric(
-        df["Seats"],
-        errors="coerce"
-    ).fillna(0)
-
-    df = df.fillna("")
-
-    _bus_df = df
-
-    print(f"Loaded {len(df)} buses")
-
-    return _bus_df
-
-
-# ==========================================================
-# Load FAISS
-# ==========================================================
-
-def load_faiss_index():
-
-    global _faiss_index
-
-    if _faiss_index is not None:
-        return _faiss_index
-
-    if not os.path.exists(FAISS_INDEX):
-        raise FileNotFoundError(
-            f"FAISS index not found: {FAISS_INDEX}"
-        )
-
-    _faiss_index = faiss.read_index(FAISS_INDEX)
-
-    print("FAISS index loaded")
-
-    return _faiss_index
-
-
-# ==========================================================
-# Load Documents
-# ==========================================================
 
 def load_documents():
-
     global _documents
-
-    if _documents is not None:
-        return _documents
-
-    if not os.path.exists(DOCUMENTS_FILE):
-        raise FileNotFoundError(
-            f"documents.pkl not found: {DOCUMENTS_FILE}"
-        )
-
-    with open(DOCUMENTS_FILE, "rb") as f:
-        _documents = pickle.load(f)
-
-    print(f"Loaded {len(_documents)} documents")
-
+    if _documents is None:
+        with open(DOCUMENTS_FILE, "rb") as f:
+            _documents = pickle.load(f)
     return _documents
 
 
-# ==========================================================
-# Route Filter
-# ==========================================================
-
-def filter_route(
-    df: pd.DataFrame,
-    from_city: Optional[str],
-    to_city: Optional[str],
-) -> pd.DataFrame:
-
-    if from_city:
-        df = df[
-            df["From_City"].str.lower()
-            == from_city.lower()
-        ]
-
-    if to_city:
-        df = df[
-            df["To_City"].str.lower()
-            == to_city.lower()
-        ]
-
-    return df
+def load_index():
+    global _index
+    if _index is None:
+        _index = faiss.read_index(FAISS_INDEX)
+    return _index
 
 
-# ==========================================================
-# Fare Filter
-# ==========================================================
-
-def filter_fare(
-    df: pd.DataFrame,
-    max_price: Optional[int],
-) -> pd.DataFrame:
-
-    if max_price is None:
-        return df
-
-    return df[df["Fare"] <= max_price]
+def _extract_bus_id(text: str) -> Optional[str]:
+    m = re.search(r"Bus ID:\s*([A-Za-z0-9_-]+)", text)
+    return m.group(1) if m else None
 
 
-# ==========================================================
-# Bus Type Filter
-# ==========================================================
+def semantic_search(query: str, top_k: int = TOP_K) -> List[Dict]:
+    load_csv()
+    docs = load_documents()
+    idx = load_index()
+    model = get_model()
 
-def filter_bus_type(
-    df: pd.DataFrame,
-    bus_type: Optional[str],
-) -> pd.DataFrame:
+    emb = model.encode([query], normalize_embeddings=True)
+    scores, ids = idx.search(np.asarray(emb, dtype=np.float32), top_k)
 
-    if not bus_type:
-        return df
+    results = []
 
-    return df[
-        df["Bus_Type"]
-        .str.lower()
-        .str.contains(bus_type.lower(), na=False)
-    ]
+    for score, i in zip(scores[0], ids[0]):
+        if i < 0:
+            continue
 
+        bus_id = _extract_bus_id(docs[i])
+        if not bus_id:
+            continue
 
-# ==========================================================
-# Operator Filter
-# ==========================================================
+        row = _lookup.get(bus_id)
+        if row:
+            item = dict(row)
+            item["confidence"] = float(score)
+            results.append(item)
 
-def filter_operator(
-    df: pd.DataFrame,
-    operator: Optional[str],
-) -> pd.DataFrame:
-
-    if not operator:
-        return df
-
-    return df[
-        df["Operator"]
-        .str.lower()
-        .str.contains(operator.lower(), na=False)
-    ]
+    return results
 
 
-# ==========================================================
-# Amenities Filter
-# ==========================================================
+def apply_filters(
+    results: List[Dict],
+    from_city=None,
+    to_city=None,
+    bus_type=None,
+    operator=None,
+    max_price=None,
+):
+    out = []
 
-def filter_amenities(
-    df: pd.DataFrame,
-    amenities: List[str],
-) -> pd.DataFrame:
+    for r in results:
+        if from_city and str(r["From_City"]).lower() != from_city.lower():
+            continue
+        if to_city and str(r["To_City"]).lower() != to_city.lower():
+            continue
+        if bus_type and bus_type.lower() not in str(r["Bus_Type"]).lower():
+            continue
+        if operator and operator.lower() not in str(r["Operator"]).lower():
+            continue
+        if max_price is not None and float(r["Fare"]) > max_price:
+            continue
+        out.append(r)
 
-    if not amenities:
-        return df
-
-    filtered = df.copy()
-
-    for amenity in amenities:
-        filtered = filtered[
-            filtered["Amenities"]
-            .str.lower()
-            .str.contains(amenity.lower(), na=False)
-        ]
-
-    return filtered
-
-
-# ==========================================================
-# Seats Filter
-# ==========================================================
-
-def filter_available_seats(
-    df: pd.DataFrame,
-    minimum: int = 1,
-) -> pd.DataFrame:
-
-    return df[df["Available_Seats"] >= minimum]
+    return out
 
 
-# ==========================================================
-# Time Filter
-# ==========================================================
+def search_buses(query: str, filters: Optional[Dict] = None):
+    filters = filters or {}
 
-def filter_time(
-    df: pd.DataFrame,
-    keyword: Optional[str],
-) -> pd.DataFrame:
+    results = semantic_search(query)
 
-    if not keyword:
-        return df
+    results = apply_filters(
+        results,
+        from_city=filters.get("from_city"),
+        to_city=filters.get("to_city"),
+        bus_type=filters.get("bus_type"),
+        operator=filters.get("operator"),
+        max_price=filters.get("max_price"),
+    )
 
-    dep = df["Departure_Time"].astype(str)
+    results.sort(
+        key=lambda x: (
+            x.get("confidence", 0),
+            x.get("Rating", 0),
+            x.get("Available_Seats", 0),
+        ),
+        reverse=True,
+    )
 
-    if keyword == "morning":
-        return df[dep.str[:2].astype(int).between(5, 11)]
+    return results
 
-    if keyword == "afternoon":
-        return df[dep.str[:2].astype(int).between(12, 16)]
 
-    if keyword == "evening":
-        return df[dep.str[:2].astype(int).between(17, 20)]
-
-    if keyword == "night":
-        return df[
-            (dep.str[:2].astype(int) >= 21)
-            | (dep.str[:2].astype(int) <= 4)
-        ]
-
-    return df
-
-    
+if __name__ == "__main__":
+    buses = search_buses("Luxury Sleeper bus from Bengaluru to Chennai")
+    for bus in buses:
+        print(
+            f"{bus['Operator']} | "
+            f"{bus['From_City']} -> {bus['To_City']} | "
+            f"₹{bus['Fare']} | "
+            f"⭐ {bus['Rating']}"
+        )
