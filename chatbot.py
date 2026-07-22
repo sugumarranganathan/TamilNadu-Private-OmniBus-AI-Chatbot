@@ -1,395 +1,121 @@
 """
-==============================================================
-Tamil Nadu Private Omni Bus AI Chatbot
 chatbot.py
+===========
 
-Version : 1.0
-Part : 1 / 2
+Chatbot layer for TamilNadu-Private-OmniBus-AI-Chatbot.
 
-This module:
-
-✔ Receives user query
-✔ Calls Search Engine
-✔ Formats beautiful responses
-✔ Handles greeting messages
-
-==============================================================
+Works with:
+    - search_engine.py
+    - utils.intent.analyze_query
 """
 
-from utils.intent import analyze_query, GREETING_RESPONSE
+from typing import Dict, List
+
 from search_engine import search_buses
+from utils.intent import analyze_query
 
-# ==========================================================
-# Constants
-# ==========================================================
 
-MAX_RESULTS = 5
+WELCOME_MESSAGE = """
+🚌 Welcome to Tamil Nadu Private OmniBus AI Chatbot!
 
-DIVIDER = "\n" + "─" * 55 + "\n"
+Ask questions like:
 
-# ==========================================================
-# Emoji Icons
-# ==========================================================
-
-ICONS = {
-    "bus": "🚌",
-    "route": "📍",
-    "departure": "🕘",
-    "arrival": "🕗",
-    "fare": "💰",
-    "seat": "💺",
-    "rating": "⭐",
-    "amenity": "✨",
-    "operator": "🏢",
-    "type": "🚍"
-}
-
-# ==========================================================
-# Greeting
-# ==========================================================
-
-def greeting_message():
-    return GREETING_RESPONSE
-
-# ==========================================================
-# No Result Message
-# ==========================================================
-
-def no_result_message():
-
-    return """
-😔 Sorry!
-
-No matching buses were found.
-
-Try asking:
-
-• Chennai to Madurai
-• Cheapest bus
-• Luxury Sleeper
-• Bus under 1000
+• Show buses from Chennai to Madurai
+• Cheapest bus to Coimbatore
+• Luxury Sleeper buses
 • Bus with WiFi
-• Night bus
-"""
+• Night buses
+• AC Sleeper under ₹1000
+""".strip()
 
-# ==========================================================
-# Format Amenities
-# ==========================================================
 
-def format_amenities(amenities):
+def format_bus(bus: Dict) -> str:
+    amenities = str(bus.get("Amenities", "")).replace(",", " • ")
 
-    if amenities is None:
-        return "N/A"
+    return f"""
+🚌 {bus.get("Operator")}
 
-    if str(amenities).strip() == "":
-        return "N/A"
+🚏 Route:
+{bus.get("From_City")} ➜ {bus.get("To_City")}
 
-    return amenities
+🛏 Bus:
+{bus.get("Bus_Name")}
 
-# ==========================================================
-# Format Single Bus Card
-# ==========================================================
+🚌 Type:
+{bus.get("Bus_Type")}
 
-def format_bus(bus):
+🕒 Departure:
+{bus.get("Departure_Time")}
 
-    operator = bus.get("Operator", "Unknown")
+🕒 Arrival:
+{bus.get("Arrival_Time")}
 
-    bus_name = bus.get("Bus_Name", "")
+⏳ Duration:
+{bus.get("Duration")}
 
-    source = bus.get("From_City", "")
+💰 Fare:
+₹{bus.get("Fare")}
 
-    destination = bus.get("To_City", "")
+💺 Seats:
+{bus.get("Available_Seats")} / {bus.get("Seats")}
 
-    departure = bus.get("Departure_Time", "")
+📍 Boarding:
+{bus.get("Boarding_Point")}
 
-    arrival = bus.get("Arrival_Time", "")
+📍 Dropping:
+{bus.get("Dropping_Point")}
 
-    duration = bus.get("Duration", "")
+⭐ Rating:
+{bus.get("Rating")}
 
-    fare = bus.get("Fare", "")
-
-    seats = bus.get("Available_Seats", "")
-
-    rating = bus.get("Rating", "")
-
-    bus_type = bus.get("Bus_Type", "")
-
-    amenities = format_amenities(
-        bus.get("Amenities", "")
-    )
-
-    response = f"""
-{ICONS["bus"]} **{operator}**
-
-**{bus_name}**
-
-{ICONS["route"]} Route
-{source} ➜ {destination}
-
-{ICONS["type"]} Bus Type
-{bus_type}
-
-{ICONS["departure"]} Departure
-{departure}
-
-{ICONS["arrival"]} Arrival
-{arrival}
-
-⏳ Duration
-{duration}
-
-{ICONS["fare"]} Fare
-₹ {fare}
-
-{ICONS["seat"]} Available Seats
-{seats}
-
-{ICONS["rating"]} Rating
-⭐ {rating}
-
-{ICONS["amenity"]} Amenities
+✨ Amenities:
 {amenities}
-"""
-
-    if "Confidence" in bus:
-
-        response += f"\n🤖 AI Match Score : {bus['Confidence']}"
-
-    return response
-
-# ==========================================================
-# Format Multiple Results
-# ==========================================================
-
-def format_results(results):
-
-    if len(results) == 0:
-
-        return no_result_message()
-
-    response = f"""
-## 🚌 Found {len(results)} Bus Result(s)
-
-"""
-
-    count = 0
-
-    for bus in results:
-
-        count += 1
-
-        if count > MAX_RESULTS:
-            break
-
-        response += DIVIDER
-
-        response += format_bus(bus)
-
-    return response
-
-# ==========================================================
-# Chatbot Response
-# ==========================================================
-
-def chatbot_response(query):
-
-    try:
-
-        # -----------------------------------------
-        # Validate Input
-        # -----------------------------------------
-
-        if query is None:
-            return "❌ Please enter a question."
-
-        query = query.strip()
-
-        if len(query) == 0:
-            return "❌ Please enter a question."
-
-        # -----------------------------------------
-        # Analyze Intent
-        # -----------------------------------------
-
-        parsed = analyze_query(query)
-
-        # -----------------------------------------
-        # Greeting
-        # -----------------------------------------
-
-        if parsed["is_greeting"]:
-            return greeting_message()
-
-        # -----------------------------------------
-        # Search
-        # -----------------------------------------
-
-        buses = search_buses(query)
-
-        if len(buses) == 0:
-            return no_result_message()
-
-        # -----------------------------------------
-        # Header
-        # -----------------------------------------
-
-        response = f"""
-# 🚌 Tamil Nadu Private Omni Bus AI Chatbot
-
-You asked:
-
-> {query}
-
-"""
-
-        # Route Information
-        if parsed["route"]["destination"]:
-
-            source = parsed["route"]["source"]
-            destination = parsed["route"]["destination"]
-
-            if source:
-
-                response += f"""
-📍 **Route:** {source} ➜ {destination}
-
-"""
-
-            else:
-
-                response += f"""
-📍 **Destination:** {destination}
-
-"""
-
-        # Budget Information
-        if parsed["price"]:
-
-            response += f"""
-💰 **Budget:** Under ₹{parsed['price']}
-
-"""
-
-        # Bus Type
-        if parsed["bus_type"]:
-
-            response += f"""
-🚌 **Bus Type:** {parsed['bus_type']}
-
-"""
-
-        # Amenities
-        if parsed["amenities"]:
-
-            response += f"""
-✨ **Amenities:** {", ".join(parsed["amenities"])}
-
-"""
-
-        response += "\n---\n"
-
-        # -----------------------------------------
-        # Bus Results
-        # -----------------------------------------
-
-        response += format_results(buses)
-
-        return response
-
-    except Exception as e:
-
-        return f"""
-❌ Something went wrong.
-
-Error:
-
-{str(e)}
-
-Please try another query.
-"""
+""".strip()
 
 
-# ==========================================================
-# Test Mode
-# ==========================================================
+def build_filters(intent: Dict) -> Dict:
+    return {
+        "from_city": intent.get("from_city"),
+        "to_city": intent.get("to_city"),
+        "bus_type": intent.get("bus_type"),
+        "operator": intent.get("operator"),
+        "max_price": intent.get("max_price"),
+    }
+
+
+def chatbot_response(user_query: str) -> str:
+    if not user_query.strip():
+        return "Please enter a bus search query."
+
+    intent = analyze_query(user_query)
+    filters = build_filters(intent)
+
+    buses = search_buses(user_query, filters)
+
+    if not buses:
+        return (
+            "❌ No matching buses found.\n\n"
+            "Try another route, operator, fare or bus type."
+        )
+
+    reply: List[str] = [
+        f"✅ Found {len(buses)} matching buses\n"
+    ]
+
+    for bus in buses[:10]:
+        reply.append(format_bus(bus))
+        reply.append("-" * 50)
+
+    return "\n\n".join(reply)
+
 
 if __name__ == "__main__":
-
-    print("=" * 70)
-    print("Tamil Nadu Private Omni Bus AI Chatbot")
-    print("Chatbot Engine V1")
-    print("=" * 70)
-
+    print(WELCOME_MESSAGE)
+    print()
     while True:
-
-        q = input("\nYou : ")
-
-        if q.lower() == "exit":
+        q = input("You: ")
+        if q.lower() in ("exit", "quit"):
             break
-
-        answer = chatbot_response(q)
-
-        print("\nBot:\n")
-        print(answer)
-
-
-# ==========================================================
-# Sample Queries
-# ==========================================================
-
-"""
-Try:
-
-hi
-
-hello
-
-vanakkam
-
-show buses from Chennai to Madurai
-
-Madurai bus
-
-Cheapest bus
-
-Bus under 900
-
-Luxury Sleeper
-
-Volvo bus
-
-AC bus
-
-Bus with WiFi
-
-Bus with Charging
-
-Night bus
-
-Morning bus
-
-Window seat
-
-Available seats
-
-Best rated bus
-
-SRM bus
-
-KPN bus
-
-Refund policy
-
-Cancellation policy
-
-Chennai la irundhu Madurai bus
-
-Madurai bus venum
-
-1000 ku keela bus
-
-WiFi iruka
-
-Volvo bus kaatu
-
-"""
+        print()
+        print(chatbot_response(q))
+        print()
