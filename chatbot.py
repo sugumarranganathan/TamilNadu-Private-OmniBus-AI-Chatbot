@@ -1,9 +1,9 @@
 
 """
-chatbot.py
+chatbot_v6.py
 =========================================
 Tamil Nadu Private OmniBus AI Chatbot
-Chatbot Response Layer (Version 4.0)
+Professional Chatbot Layer (Version 6.0)
 =========================================
 """
 
@@ -15,65 +15,89 @@ class BusChatbot:
     def __init__(self):
         self.engine = BusSearchEngine()
 
-    def _format_bus(self, bus: dict) -> str:
+    def greeting(self):
         return (
-            f"🚌 **{bus.get('Operator','N/A')}**\n"
-            f"**Route:** {bus.get('From_City')} → {bus.get('To_City')}\n"
-            f"**Bus:** {bus.get('Bus_Name','')} ({bus.get('Bus_Type','')})\n"
-            f"**Departure:** {bus.get('Departure_Time','')} | "
-            f"**Arrival:** {bus.get('Arrival_Time','')}\n"
-            f"**Fare:** ₹{bus.get('Fare','N/A')}\n"
-            f"**Seats Available:** {bus.get('Available_Seats','N/A')}\n"
-            f"**Amenities:** {bus.get('Amenities','N/A')}\n"
-            f"**Rating:** ⭐ {bus.get('Rating','N/A')}"
+            "# 👋 Welcome to Tamil Nadu Private OmniBus AI Chatbot\n\n"
+            "Try asking:\n"
+            "- Show buses from Chennai to Madurai\n"
+            "- Night Luxury Sleeper to Bangalore\n"
+            "- Bus under 1000 with WiFi\n"
+            "- Cheapest Volvo bus\n"
+            "- Best rated buses"
         )
 
-    def _greeting(self) -> str:
+    def _card(self, bus: dict, index: int) -> str:
+        return f"""## 🚌 Bus {index}
+
+**Operator:** {bus.get('Operator','N/A')}
+
+📍 **Route:** {bus.get('From_City','')} ➜ {bus.get('To_City','')}
+
+🚍 **Bus:** {bus.get('Bus_Name','')} ({bus.get('Bus_Type','')})
+
+🕒 **Departure:** {bus.get('Departure_Time','')}  
+🕒 **Arrival:** {bus.get('Arrival_Time','')}
+
+💰 **Fare:** ₹{bus.get('Fare','')}
+
+⭐ **Rating:** {bus.get('Rating','')}
+
+💺 **Available Seats:** {bus.get('Available_Seats','')}
+
+📍 **Boarding:** {bus.get('Boarding_Point','')}
+
+📍 **Dropping:** {bus.get('Dropping_Point','')}
+
+🎁 **Amenities:** {bus.get('Amenities','')}
+"""
+
+    def no_results(self, intent):
+        tips = []
+        if intent.get("max_price"):
+            tips.append("• Increase the maximum fare.")
+        if intent.get("amenities"):
+            tips.append("• Remove one or more amenity filters.")
+        if intent.get("bus_type"):
+            tips.append("• Try a different bus type.")
+        tips.append("• Check the city names or try a nearby city.")
+
         return (
-            "👋 Hello! I'm your Tamil Nadu Private OmniBus AI Assistant.\n\n"
-            "You can ask questions like:\n"
-            "- Show buses from Chennai to Madurai\n"
-            "- Cheapest bus to Coimbatore\n"
-            "- Luxury Sleeper bus under 1000\n"
-            "- Night bus with WiFi"
+            "## ❌ No matching buses found.\n\n"
+            "### Suggestions\n" +
+            "\n".join(tips)
         )
 
     def reply(self, query: str) -> str:
         query = (query or "").strip()
+
         if not query:
-            return "Please enter a bus search query."
+            return "Please enter a search query."
 
         intent = analyze_query(query)
 
         if intent.get("greeting"):
-            return self._greeting()
+            return self.greeting()
 
-        results = self.engine.search(query)
+        buses = self.engine.search(query)
 
-        if not results:
-            return (
-                "❌ No matching buses found.\n\n"
-                "Try changing the city, bus type, fare limit, or amenities."
-            )
+        if not buses:
+            return self.no_results(intent)
 
-        response = [f"### Found {len(results)} matching bus(es)\n"]
+        header = f"# ✅ Found {len(buses)} Matching Bus(es)\n"
+        cards = [self._card(bus, i) for i, bus in enumerate(buses[:5], start=1)]
 
-        for i, bus in enumerate(results[:5], start=1):
-            response.append(f"## {i}\n{self._format_bus(bus)}")
+        footer = ""
+        if len(buses) > 5:
+            footer = f"\n---\nShowing first 5 of {len(buses)} buses."
 
-        if len(results) > 5:
-            response.append(
-                f"\nShowing first 5 of {len(results)} matching buses."
-            )
-
-        return "\n\n---\n\n".join(response)
+        return header + "\n\n---\n\n".join(cards) + footer
 
 
 if __name__ == "__main__":
     bot = BusChatbot()
 
     print("=" * 60)
-    print("Tamil Nadu Private OmniBus AI Chatbot")
+    print("Tamil Nadu Private OmniBus AI Chatbot V6")
     print("Type 'exit' to quit.")
     print("=" * 60)
 
