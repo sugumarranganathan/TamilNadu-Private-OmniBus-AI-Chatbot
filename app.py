@@ -2,49 +2,54 @@
 =========================================================
 Tamil Nadu Private OmniBus AI Chatbot
 app.py
-Version 8.0
-Part 1 / 4
+Version 9.0
+Part 1
 =========================================================
 """
 
+import os
 import gradio as gr
 
 from chatbot import BusChatbot
 from config import (
-    EXAMPLE_QUERIES,
     STYLE_FILE,
+    EXAMPLE_QUERIES,
 )
 
-# -------------------------------------------------------
-# Load Chatbot
-# -------------------------------------------------------
+# =========================================================
+# Initialize Chatbot
+# =========================================================
 
 bot = BusChatbot()
 
-# -------------------------------------------------------
-# Load Custom CSS
-# -------------------------------------------------------
+# =========================================================
+# Load CSS
+# =========================================================
 
 css = ""
 
-try:
-    with open(STYLE_FILE, "r", encoding="utf-8") as f:
-        css = f.read()
-except:
-    css = ""
+if os.path.exists(STYLE_FILE):
 
-# -------------------------------------------------------
-# Callback Functions
-# -------------------------------------------------------
+    try:
+
+        with open(STYLE_FILE, "r", encoding="utf-8") as f:
+            css = f.read()
+
+    except Exception:
+        css = ""
+
+# =========================================================
+# Chat Function
+# =========================================================
 
 def chat(message, history):
 
     if history is None:
         history = []
 
-    message = (message or "").strip()
+    message = str(message).strip()
 
-    if not message:
+    if message == "":
         return "", history
 
     try:
@@ -53,23 +58,7 @@ def chat(message, history):
 
     except Exception as e:
 
-        response = f"❌ Error\n\n{str(e)}"
-
-def chat(message, history):
-
-    if history is None:
-        history = []
-
-    message = (message or "").strip()
-
-    if not message:
-        return "", history
-
-    try:
-        response = bot.chat(message)
-
-    except Exception as e:
-        response = f"❌ Error\n\n{e}"
+        response = f"❌ {e}"
 
     history.append(
         {
@@ -87,37 +76,19 @@ def chat(message, history):
 
     return "", history
 
-    message = (message or "").strip()
 
-    if not message:
-        return "", history
-
-    try:
-        response = bot.chat(message)
-    except Exception as e:
-        response = f"❌ Error\n\n{e}"
-
-    history.append(
-        {
-            "role": "user",
-            "content": message,
-        }
-    )
-
-    history.append(
-        {
-            "role": "assistant",
-            "content": response,
-        }
-    )
-
-    return "", history
-
+# =========================================================
+# Clear Chat
+# =========================================================
 
 def clear_chat():
 
     return []
 
+
+# =========================================================
+# Analytics
+# =========================================================
 
 def show_analytics():
 
@@ -127,20 +98,20 @@ def show_analytics():
 
         analytics = bot.engine.analytics()
 
-        text = f"""
+        return f"""
 # Dataset Information
 
 **Embedding Model**
-{info['model']}
+{info["model"]}
 
 **Bus Records**
-{info['bus_records']}
+{info["bus_records"]}
 
 **Semantic Documents**
-{info['documents']}
+{info["documents"]}
 
 **FAISS Vectors**
-{info['vectors']}
+{info["vectors"]}
 
 ---
 
@@ -151,13 +122,11 @@ def show_analytics():
 
     except Exception as e:
 
-        text = f"Unable to load analytics.\n\n{e}"
+        return f"❌ {e}"
 
-    return text
-
-# -------------------------------------------------------
-# UI
-# -------------------------------------------------------
+# =========================================================
+# User Interface
+# =========================================================
 
 with gr.Blocks(
 
@@ -171,9 +140,9 @@ with gr.Blocks(
         """
 # 🚌 Tamil Nadu Private OmniBus AI Chatbot
 
-Search buses using natural language.
+Search Tamil Nadu private buses using natural language.
 
-### Examples
+### Try asking
 
 - Chennai to Madurai
 - Cheapest bus
@@ -187,23 +156,24 @@ Search buses using natural language.
 
     with gr.Row():
 
+        # ==========================================
+        # Left Panel
+        # ==========================================
+
         with gr.Column(scale=4):
 
-    chatbot = gr.Chatbot(
-        type="messages",
-        height=520,
-        label="Conversation",
-        show_copy_button=True,
-    )
+            chatbot = gr.Chatbot(
 
-    message = gr.Textbox(
-        ...
-    )
-            type="messages",
-            height=520,
-            label="Conversation",
-            show_copy_button=True,
-    )
+                type="messages",
+
+                label="Conversation",
+
+                height=520,
+
+                show_copy_button=True,
+
+            )
+
             message = gr.Textbox(
 
                 label="Ask about buses",
@@ -230,11 +200,25 @@ Search buses using natural language.
 
                 )
 
+            gr.Examples(
+
+                examples=[[q] for q in EXAMPLE_QUERIES],
+
+                inputs=message,
+
+            )
+
+        # ==========================================
+        # Right Panel
+        # ==========================================
+
         with gr.Column(scale=1):
 
             analytics_btn = gr.Button(
 
-                "Dataset Analytics"
+                "📊 Dataset Analytics",
+
+                variant="secondary",
 
             )
 
@@ -242,33 +226,47 @@ Search buses using natural language.
 
             gr.Markdown(
                 """
-### Quick Tips
+### Search Tips
 
-✔ Search by city
+✅ Search by route
 
-✔ Search by operator
+✅ Search by operator
 
-✔ Search by fare
+✅ Search by bus type
 
-✔ Search by amenities
+✅ Search by amenities
 
-✔ Search by timing
+✅ Search by timing
 
-✔ Search by rating
+✅ Search by fare
+
+✅ Search by rating
+
+---
+
+### Example Queries
+
+- Chennai to Salem
+
+- Chennai to Madurai
+
+- AC Sleeper
+
+- Volvo
+
+- Cheapest Bus
+
+- Bus under ₹800
+
+- Bus with WiFi
+
+- Best Rated Bus
 """
             )
 
-    gr.Examples(
-
-        examples=[[q] for q in EXAMPLE_QUERIES],
-
-        inputs=message,
-
-    )
-
-    # -------------------------------------------------------
+    # =========================================================
     # Event Handlers
-    # -------------------------------------------------------
+    # =========================================================
 
     send_btn.click(
         fn=chat,
@@ -296,32 +294,19 @@ Search buses using natural language.
 
     clear_btn.click(
         fn=clear_chat,
+        inputs=[],
         outputs=chatbot,
     )
 
     analytics_btn.click(
         fn=show_analytics,
+        inputs=[],
         outputs=analytics_output,
     )
 
-    # -------------------------------------------------------
-    # Quick Examples
-    # -------------------------------------------------------
-
-    for query in EXAMPLE_QUERIES:
-
-        gr.Button(
-            query,
-            size="sm",
-        ).click(
-            fn=lambda q=query: q,
-            outputs=message,
-        )
-
-
-    # -------------------------------------------------------
+    # =========================================================
     # Footer
-    # -------------------------------------------------------
+    # =========================================================
 
     gr.Markdown(
         """
@@ -329,20 +314,19 @@ Search buses using natural language.
 
 ### 🚀 Tamil Nadu Private OmniBus AI Chatbot
 
-Built with
+Built with:
 
 - Python
 - Gradio
 - FAISS
 - Sentence Transformers
-- Hugging Face Spaces
 
-Natural Language Bus Search using Semantic Search.
+AI-powered semantic search for Tamil Nadu private bus services.
 """
     )
 
 # =========================================================
-# Launch Application
+# Main
 # =========================================================
 
 if __name__ == "__main__":
@@ -350,7 +334,8 @@ if __name__ == "__main__":
     demo.queue()
 
     demo.launch(
-        share=False,
+        server_name="0.0.0.0",
+        server_port=7860,
         debug=True,
+        share=False,
     )
-
