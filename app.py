@@ -11,7 +11,7 @@ Compatible with Gradio 5.38.2
 import os
 import gradio as gr
 
-from chatbot_v6 import BusChatbot
+from chatbot.py import BusChatbot
 from config import (
     APP_NAME,
     APP_VERSION,
