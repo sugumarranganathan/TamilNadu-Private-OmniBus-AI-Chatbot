@@ -1,12 +1,8 @@
+
 """
 chatbot.py
-===========
-
-Chatbot layer for TamilNadu-Private-OmniBus-AI-Chatbot.
-
-Works with:
-    - search_engine.py
-    - utils.intent.analyze_query
+Version 3.0
+Compatible with Gradio 6.x architecture.
 """
 
 from typing import Dict, List
@@ -15,62 +11,33 @@ from search_engine import search_buses
 from utils.intent import analyze_query
 
 
-WELCOME_MESSAGE = """
-🚌 Welcome to Tamil Nadu Private OmniBus AI Chatbot!
-
-Ask questions like:
-
-• Show buses from Chennai to Madurai
-• Cheapest bus to Coimbatore
-• Luxury Sleeper buses
-• Bus with WiFi
-• Night buses
-• AC Sleeper under ₹1000
-""".strip()
+WELCOME_MESSAGE = (
+    "🚌 Welcome to Tamil Nadu Private OmniBus AI Chatbot!\n\n"
+    "Try:\n"
+    "- Show buses from Chennai to Madurai\n"
+    "- Luxury Sleeper buses\n"
+    "- Bus under 1000\n"
+    "- Bus with WiFi"
+)
 
 
-def format_bus(bus: Dict) -> str:
+def _format_bus(bus: Dict) -> str:
     amenities = str(bus.get("Amenities", "")).replace(",", " • ")
-
-    return f"""
-🚌 {bus.get("Operator")}
-
-🚏 Route:
-{bus.get("From_City")} ➜ {bus.get("To_City")}
-
-🛏 Bus:
-{bus.get("Bus_Name")}
-
-🚌 Type:
-{bus.get("Bus_Type")}
-
-🕒 Departure:
-{bus.get("Departure_Time")}
-
-🕒 Arrival:
-{bus.get("Arrival_Time")}
-
-⏳ Duration:
-{bus.get("Duration")}
-
-💰 Fare:
-₹{bus.get("Fare")}
-
-💺 Seats:
-{bus.get("Available_Seats")} / {bus.get("Seats")}
-
-📍 Boarding:
-{bus.get("Boarding_Point")}
-
-📍 Dropping:
-{bus.get("Dropping_Point")}
-
-⭐ Rating:
-{bus.get("Rating")}
-
-✨ Amenities:
-{amenities}
-""".strip()
+    return (
+        f"🚌 **{bus.get('Operator','')}**\n\n"
+        f"**Route:** {bus.get('From_City','')} ➜ {bus.get('To_City','')}\n"
+        f"**Bus:** {bus.get('Bus_Name','')}\n"
+        f"**Type:** {bus.get('Bus_Type','')}\n"
+        f"**Departure:** {bus.get('Departure_Time','')}\n"
+        f"**Arrival:** {bus.get('Arrival_Time','')}\n"
+        f"**Duration:** {bus.get('Duration','')}\n"
+        f"**Fare:** ₹{bus.get('Fare','')}\n"
+        f"**Seats:** {bus.get('Available_Seats','')} / {bus.get('Seats','')}\n"
+        f"**Boarding:** {bus.get('Boarding_Point','')}\n"
+        f"**Dropping:** {bus.get('Dropping_Point','')}\n"
+        f"**Rating:** ⭐ {bus.get('Rating','')}\n"
+        f"**Amenities:** {amenities}"
+    )
 
 
 def build_filters(intent: Dict) -> Dict:
@@ -84,38 +51,40 @@ def build_filters(intent: Dict) -> Dict:
 
 
 def chatbot_response(user_query: str) -> str:
-    if not user_query.strip():
+    """Return a plain text/Markdown response."""
+    query = (user_query or "").strip()
+
+    if not query:
         return "Please enter a bus search query."
 
-    intent = analyze_query(user_query)
-    filters = build_filters(intent)
+    try:
+        intent = analyze_query(query)
+    except Exception:
+        intent = {}
 
-    buses = search_buses(user_query, filters)
+    try:
+        buses = search_buses(query, build_filters(intent))
+    except Exception as e:
+        return f"❌ Search error:\n\n{e}"
 
     if not buses:
         return (
             "❌ No matching buses found.\n\n"
-            "Try another route, operator, fare or bus type."
+            "Try changing the route, fare, bus type or operator."
         )
 
-    reply: List[str] = [
-        f"✅ Found {len(buses)} matching buses\n"
-    ]
+    reply: List[str] = [f"### ✅ Found {len(buses)} matching bus(es)\n"]
 
-    for bus in buses[:10]:
-        reply.append(format_bus(bus))
-        reply.append("-" * 50)
+    for i, bus in enumerate(buses[:10], start=1):
+        reply.append(f"#### {i}. Result\n{_format_bus(bus)}")
 
-    return "\n\n".join(reply)
+    return "\n\n---\n\n".join(reply)
 
 
 if __name__ == "__main__":
     print(WELCOME_MESSAGE)
-    print()
     while True:
-        q = input("You: ")
-        if q.lower() in ("exit", "quit"):
+        q = input("\nYou: ")
+        if q.lower() in {"exit", "quit"}:
             break
-        print()
         print(chatbot_response(q))
-        print()
