@@ -1,169 +1,166 @@
 """
-=========================================================
+==============================================================
 Tamil Nadu Private Omni Bus AI Chatbot
-Search Engine
-=========================================================
+search_engine.py
+
+Version : 1.0
+
+Part 1 / 3
+
+Loads:
+
+✔ CSV
+✔ FAISS Index
+✔ Documents
+✔ Embedding Model
+
+==============================================================
 """
 
+import os
 import pickle
 import faiss
-import numpy as np
 import pandas as pd
+import numpy as np
 
 from sentence_transformers import SentenceTransformer
 
-from config import (
-    CSV_FILE,
-    DOCUMENTS_FILE,
-    FAISS_INDEX_FILE,
-    EMBEDDING_MODEL,
-    TOP_K,
-    CONFIDENCE_THRESHOLD
-)
+from utils.intent import analyze_query
 
 # ==========================================================
-# Load CSV
+# Configuration
 # ==========================================================
 
-print("Loading bus dataset...")
+DATA_FOLDER = "data"
 
-bus_df = pd.read_csv(CSV_FILE)
+CSV_FILE = os.path.join(DATA_FOLDER, "bus_services.csv")
 
-print(f"Loaded {len(bus_df)} bus records.")
+DOCUMENT_FILE = os.path.join(DATA_FOLDER, "documents.pkl")
 
-# ==========================================================
-# Load Documents
-# ==========================================================
+INDEX_FILE = os.path.join(DATA_FOLDER, "bus_index.faiss")
 
-print("Loading documents...")
+MODEL_NAME = "all-MiniLM-L6-v2"
 
-with open(DOCUMENTS_FILE, "rb") as f:
-    documents = pickle.load(f)
-
-print(f"Loaded {len(documents)} documents.")
-
-# ==========================================================
-# Load FAISS Index
-# ==========================================================
-
-print("Loading FAISS index...")
-
-index = faiss.read_index(FAISS_INDEX_FILE)
-
-print("FAISS index loaded successfully.")
+TOP_K = 10
 
 # ==========================================================
 # Load Embedding Model
 # ==========================================================
 
+print("=" * 60)
 print("Loading Sentence Transformer...")
+print("=" * 60)
 
-model = SentenceTransformer(EMBEDDING_MODEL)
-
-print("Embedding model loaded.")
-
-# ==========================================================
-# Search Function
-# ==========================================================
-
-def search_buses(query):
-
-    """
-    Search buses using semantic search.
-    """
-
-    embedding = model.encode([query])
-
-    distances, indices = index.search(
-        np.array(embedding).astype("float32"),
-        TOP_K
-    )
-
-    results = []
-
-    for score, idx in zip(distances[0], indices[0]):
-
-        if idx == -1:
-            continue
-
-        confidence = 1 / (1 + score)
-
-        if confidence < CONFIDENCE_THRESHOLD:
-            continue
-
-        row = bus_df.iloc[idx]
-
-        results.append({
-
-            "Bus_ID": row.get("Bus_ID", ""),
-
-            "Operator": row.get("Operator", ""),
-
-            "Bus_Name": row.get("Bus_Name", ""),
-
-            "Source": row.get("Source", ""),
-
-            "Destination": row.get("Destination", ""),
-
-            "Bus_Type": row.get("Bus_Type", ""),
-
-            "Departure_Time": row.get("Departure_Time", ""),
-
-            "Arrival_Time": row.get("Arrival_Time", ""),
-
-            "Fare": row.get("Fare", ""),
-
-            "Rating": row.get("Rating", ""),
-
-            "Available_Seats": row.get("Available_Seats", ""),
-
-            "AC": row.get("AC", ""),
-
-            "WiFi": row.get("WiFi", ""),
-
-            "Charging": row.get("Charging", ""),
-
-            "GPS": row.get("GPS", ""),
-
-            "CCTV": row.get("CCTV", ""),
-
-            "Confidence": round(confidence, 2)
-
-        })
-
-    return results
+model = SentenceTransformer(MODEL_NAME)
 
 # ==========================================================
-# Test
+# Load CSV
 # ==========================================================
 
-if __name__ == "__main__":
+print("Loading Bus Database...")
 
-    while True:
+bus_df = pd.read_csv(CSV_FILE)
 
-        query = input("\nAsk: ")
+bus_df.columns = bus_df.columns.str.strip()
 
-        if query.lower() == "exit":
-            break
+print(f"Loaded {len(bus_df)} Bus Records")
 
-        buses = search_buses(query)
+# ==========================================================
+# Load Documents
+# ==========================================================
 
-        print()
+print("Loading Documents...")
 
-        for i, bus in enumerate(buses, start=1):
+with open(DOCUMENT_FILE, "rb") as f:
 
-            print("=" * 50)
+    documents = pickle.load(f)
 
-            print(f"{i}. {bus['Operator']}")
+print(f"Loaded {len(documents)} Documents")
 
-            print(bus["Bus_Name"])
+# ==========================================================
+# Load FAISS
+# ==========================================================
 
-            print(f"{bus['Source']} -> {bus['Destination']}")
+print("Loading FAISS Index...")
 
-            print(f"Fare : ₹{bus['Fare']}")
+index = faiss.read_index(INDEX_FILE)
 
-            print(f"Rating : {bus['Rating']}")
+print("FAISS Loaded Successfully")
 
-            print(f"Confidence : {bus['Confidence']}")
+print("=" * 60)
 
-            print("=" * 50)
+# ==========================================================
+# Helper Functions
+# ==========================================================
+
+def normalize_text(text):
+
+    if pd.isna(text):
+
+        return ""
+
+    return str(text).strip().lower()
+
+
+def contains_word(text, word):
+
+    return word.lower() in normalize_text(text)
+
+
+# ==========================================================
+# Filter By Route
+# ==========================================================
+
+def filter_route(df, route):
+
+    source = route["source"]
+
+    destination = route["destination"]
+
+    filtered = df.copy()
+
+    if source:
+
+        filtered = filtered[
+            filtered["From_City"].str.lower() == source.lower()
+        ]
+
+    if destination:
+
+        filtered = filtered[
+            filtered["To_City"].str.lower() == destination.lower()
+        ]
+
+    return filtered
+
+
+# ==========================================================
+# Filter By Price
+# ==========================================================
+
+def filter_price(df, price):
+
+    if price is None:
+
+        return df
+
+    return df[df["Fare"] <= price]
+
+
+# ==========================================================
+# Filter Bus Type
+# ==========================================================
+
+def filter_bus_type(df, bus_type):
+
+    if bus_type is None:
+
+        return df
+
+    return df[
+        df["Bus_Type"].str.contains(
+            bus_type,
+            case=False,
+            na=False
+        )
+    ]
