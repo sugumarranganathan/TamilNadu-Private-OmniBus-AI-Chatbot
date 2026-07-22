@@ -1,155 +1,117 @@
 
 """
 search_engine.py
-Production-ready foundation for TamilNadu-Private-OmniBus-AI-Chatbot
+=========================================
+Tamil Nadu Private OmniBus AI Chatbot
+Semantic Search Engine (Version 4.0)
+=========================================
 """
 
-import os
 import pickle
-import re
-from typing import Dict, List, Optional
+from pathlib import Path
 
 import faiss
-import numpy as np
 import pandas as pd
 from sentence_transformers import SentenceTransformer
 
 from config import (
     BUS_CSV,
     DOCUMENTS_FILE,
-    FAISS_INDEX,
     EMBEDDING_MODEL,
+    FAISS_INDEX,
     TOP_K,
+    validate_project,
 )
-
-_model = None
-_index = None
-_documents = None
-_df = None
-_lookup = None
+from utils.intent import analyze_query
 
 
-def get_model():
-    global _model
-    if _model is None:
-        _model = SentenceTransformer(EMBEDDING_MODEL)
-    return _model
+class BusSearchEngine:
+    def __init__(self):
+        validate_project()
 
+        self.df = pd.read_csv(BUS_CSV)
+        self.model = SentenceTransformer(EMBEDDING_MODEL)
 
-def load_csv():
-    global _df, _lookup
-    if _df is None:
-        _df = pd.read_csv(BUS_CSV)
-        _lookup = {str(r["Bus_ID"]): r.to_dict() for _, r in _df.iterrows()}
-    return _df
-
-
-def load_documents():
-    global _documents
-    if _documents is None:
         with open(DOCUMENTS_FILE, "rb") as f:
-            _documents = pickle.load(f)
-    return _documents
+            self.documents = pickle.load(f)
 
+        self.index = faiss.read_index(str(FAISS_INDEX))
 
-def load_index():
-    global _index
-    if _index is None:
-        _index = faiss.read_index(FAISS_INDEX)
-    return _index
+    def semantic_search(self, query: str, top_k: int = TOP_K):
+        embedding = self.model.encode([query], convert_to_numpy=True)
+        scores, ids = self.index.search(embedding, top_k)
 
+        results = []
+        for score, idx in zip(scores[0], ids[0]):
+            if idx < 0 or idx >= len(self.df):
+                continue
+            row = self.df.iloc[int(idx)].to_dict()
+            row["score"] = float(score)
+            results.append(row)
+        return results
 
-def _extract_bus_id(text: str) -> Optional[str]:
-    m = re.search(r"Bus ID:\s*([A-Za-z0-9_-]+)", text)
-    return m.group(1) if m else None
+    def apply_filters(self, results, intent):
+        filtered = []
 
+        for bus in results:
+            if intent["from_city"] and str(bus.get("From_City", "")).lower() != intent["from_city"].lower():
+                continue
 
-def semantic_search(query: str, top_k: int = TOP_K) -> List[Dict]:
-    load_csv()
-    docs = load_documents()
-    idx = load_index()
-    model = get_model()
+            if intent["to_city"] and str(bus.get("To_City", "")).lower() != intent["to_city"].lower():
+                continue
 
-    emb = model.encode([query], normalize_embeddings=True)
-    scores, ids = idx.search(np.asarray(emb, dtype=np.float32), top_k)
+            if intent["bus_type"]:
+                if intent["bus_type"].lower() not in str(bus.get("Bus_Type", "")).lower():
+                    continue
 
-    results = []
+            if intent["operator"]:
+                if intent["operator"].lower() not in str(bus.get("Operator", "")).lower():
+                    continue
 
-    for score, i in zip(scores[0], ids[0]):
-        if i < 0:
-            continue
+            if intent["max_price"] is not None:
+                try:
+                    if float(bus.get("Fare", 0)) > intent["max_price"]:
+                        continue
+                except Exception:
+                    pass
 
-        bus_id = _extract_bus_id(docs[i])
-        if not bus_id:
-            continue
+            amenities = str(bus.get("Amenities", "")).lower()
+            if any(a.lower() not in amenities for a in intent["amenities"]):
+                continue
 
-        row = _lookup.get(bus_id)
-        if row:
-            item = dict(row)
-            item["confidence"] = float(score)
-            results.append(item)
+            filtered.append(bus)
 
-    return results
+        if intent["sort"] == "cheapest":
+            filtered.sort(key=lambda x: float(x.get("Fare", 0)))
 
+        elif intent["sort"] == "rating":
+            filtered.sort(key=lambda x: float(x.get("Rating", 0)), reverse=True)
 
-def apply_filters(
-    results: List[Dict],
-    from_city=None,
-    to_city=None,
-    bus_type=None,
-    operator=None,
-    max_price=None,
-):
-    out = []
+        return filtered
 
-    for r in results:
-        if from_city and str(r["From_City"]).lower() != from_city.lower():
-            continue
-        if to_city and str(r["To_City"]).lower() != to_city.lower():
-            continue
-        if bus_type and bus_type.lower() not in str(r["Bus_Type"]).lower():
-            continue
-        if operator and operator.lower() not in str(r["Operator"]).lower():
-            continue
-        if max_price is not None and float(r["Fare"]) > max_price:
-            continue
-        out.append(r)
-
-    return out
-
-
-def search_buses(query: str, filters: Optional[Dict] = None):
-    filters = filters or {}
-
-    results = semantic_search(query)
-
-    results = apply_filters(
-        results,
-        from_city=filters.get("from_city"),
-        to_city=filters.get("to_city"),
-        bus_type=filters.get("bus_type"),
-        operator=filters.get("operator"),
-        max_price=filters.get("max_price"),
-    )
-
-    results.sort(
-        key=lambda x: (
-            x.get("confidence", 0),
-            x.get("Rating", 0),
-            x.get("Available_Seats", 0),
-        ),
-        reverse=True,
-    )
-
-    return results
+    def search(self, query: str):
+        intent = analyze_query(query)
+        semantic = self.semantic_search(query)
+        return self.apply_filters(semantic, intent)
 
 
 if __name__ == "__main__":
-    buses = search_buses("Luxury Sleeper bus from Bengaluru to Chennai")
-    for bus in buses:
-        print(
-            f"{bus['Operator']} | "
-            f"{bus['From_City']} -> {bus['To_City']} | "
-            f"₹{bus['Fare']} | "
-            f"⭐ {bus['Rating']}"
-        )
+    engine = BusSearchEngine()
+
+    while True:
+        q = input("\nAsk (or 'exit'): ")
+        if q.lower() == "exit":
+            break
+
+        buses = engine.search(q)
+
+        print(f"\nFound {len(buses)} bus(es)\n")
+
+        for bus in buses[:5]:
+            print(
+                f"{bus['Operator']} | "
+                f"{bus['From_City']} -> {bus['To_City']} | "
+                f"{bus['Bus_Type']} | "
+                f"₹{bus['Fare']} | "
+                f"⭐ {bus['Rating']}"
+            )
