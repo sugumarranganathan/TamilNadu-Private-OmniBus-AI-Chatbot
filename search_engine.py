@@ -1,13 +1,13 @@
 """
 search_engine.py
-==========================================================
+=========================================================
 Tamil Nadu Private OmniBus AI Chatbot
-Production Search Engine (Version 7.0)
+Production Search Engine
+Version 8.0
 Part 1 / 3
-==========================================================
+=========================================================
 """
 
-import os
 import pickle
 import warnings
 
@@ -17,24 +17,27 @@ from sentence_transformers import SentenceTransformer
 
 from config import (
     MODEL_NAME,
+    CSV_FILE,
     INDEX_FILE,
     DOCUMENTS_FILE,
-    CSV_FILE,
     TOP_K,
+    validate_project,
 )
 
 from utils.normalizer import normalize_record
+
 from utils.ranking import (
     rank_results,
     remove_duplicates,
 )
+
 from utils.helpers import (
     safe_float,
     safe_int,
-    is_night_bus,
     is_morning_bus,
     is_afternoon_bus,
     is_evening_bus,
+    is_night_bus,
 )
 
 warnings.filterwarnings("ignore")
@@ -45,20 +48,34 @@ class BusSearchEngine:
     Production Search Engine
 
     Responsibilities
-
-    ✓ Load FAISS
-    ✓ Load Sentence Transformer
-    ✓ Load CSV
-    ✓ Semantic Search
-    ✓ Filtering
+    ----------------
+    ✓ Validate project files
+    ✓ Load embedding model
+    ✓ Load CSV dataset
+    ✓ Load semantic documents
+    ✓ Load FAISS index
+    ✓ Semantic search
+    ✓ Intent filtering
     ✓ Ranking
+    ✓ Sorting
     """
+
+    # -----------------------------------------------------
+    # Constructor
+    # -----------------------------------------------------
 
     def __init__(self):
 
         print("=" * 60)
         print("Loading Tamil Nadu OmniBus AI Search Engine")
         print("=" * 60)
+
+        validate_project()
+
+        self.model = None
+        self.df = None
+        self.documents = None
+        self.index = None
 
         self._load_model()
         self._load_documents()
@@ -69,7 +86,7 @@ class BusSearchEngine:
         print("=" * 60)
 
     # -----------------------------------------------------
-    # Load Embedding Model
+    # Load Sentence Transformer
     # -----------------------------------------------------
 
     def _load_model(self):
@@ -78,32 +95,34 @@ class BusSearchEngine:
 
         self.model = SentenceTransformer(MODEL_NAME)
 
-        print("Model Loaded.")
+        print("✓ Model Loaded")
 
     # -----------------------------------------------------
-    # Load CSV
+    # Load Bus Dataset
     # -----------------------------------------------------
 
     def _load_csv(self):
 
         print("Loading Bus Dataset...")
 
-        self.df = pd.read_csv(CSV_FILE)
+        self.df = pd.read_csv(str(CSV_FILE))
 
-        print(f"Loaded {len(self.df)} Bus Records.")
+        self.df.fillna("", inplace=True)
+
+        print(f"✓ Loaded {len(self.df)} bus records")
 
     # -----------------------------------------------------
-    # Load Documents
+    # Load Semantic Documents
     # -----------------------------------------------------
 
     def _load_documents(self):
 
         print("Loading Semantic Documents...")
 
-        with open(DOCUMENTS_FILE, "rb") as f:
+        with open(str(DOCUMENTS_FILE), "rb") as f:
             self.documents = pickle.load(f)
 
-        print(f"Loaded {len(self.documents)} Documents.")
+        print(f"✓ Loaded {len(self.documents)} documents")
 
     # -----------------------------------------------------
     # Load FAISS Index
@@ -113,11 +132,10 @@ class BusSearchEngine:
 
         print("Loading FAISS Index...")
 
-        self.index = faiss.read_index(INDEX_FILE)
+        self.index = faiss.read_index(str(INDEX_FILE))
 
         print(
-            f"FAISS Index Loaded "
-            f"({self.index.ntotal} vectors)"
+            f"✓ FAISS Index Loaded ({self.index.ntotal} vectors)"
         )
 
     # -----------------------------------------------------
@@ -135,7 +153,7 @@ class BusSearchEngine:
         return embedding.astype("float32")
 
     # -----------------------------------------------------
-    # Retrieve Candidates
+    # Semantic Search
     # -----------------------------------------------------
 
     def _semantic_candidates(
@@ -144,11 +162,7 @@ class BusSearchEngine:
         top_k: int = TOP_K,
     ):
         """
-        Return semantic candidate rows.
-
-        Returns
-        -------
-        list[dict]
+        Return semantic candidates from FAISS.
         """
 
         embedding = self._embed_query(query)
@@ -177,17 +191,15 @@ class BusSearchEngine:
         return candidates
 
     # -----------------------------------------------------
-    # Normalize Results
+    # Normalize Records
     # -----------------------------------------------------
 
-    def _normalize_results(
-        self,
-        candidates,
-    ):
+    def _normalize_results(self, candidates):
 
         normalized = []
 
         for row in candidates:
+
             normalized.append(
                 normalize_record(row)
             )
@@ -208,49 +220,56 @@ class BusSearchEngine:
         for bus in buses:
 
             # ---------------- Route ----------------
+
             if intent.get("from_city"):
-                if str(bus.get("From_City", "")).lower() != intent["from_city"].lower():
+
+                if str(bus.get("From_City", "")).lower() != \
+                        intent["from_city"].lower():
                     continue
 
             if intent.get("to_city"):
-                if str(bus.get("To_City", "")).lower() != intent["to_city"].lower():
+
+                if str(bus.get("To_City", "")).lower() != \
+                        intent["to_city"].lower():
                     continue
 
             # ---------------- Bus Type ----------------
+
             if intent.get("bus_type"):
-                if intent["bus_type"].lower() not in str(
-                    bus.get("Bus_Type", "")
-                ).lower():
+
+                if intent["bus_type"].lower() not in \
+                        str(bus.get("Bus_Type", "")).lower():
                     continue
 
             # ---------------- Operator ----------------
+
             if intent.get("operator"):
-                if intent["operator"].lower() not in str(
-                    bus.get("Operator", "")
-                ).lower():
+
+                if intent["operator"].lower() not in \
+                        str(bus.get("Operator", "")).lower():
                     continue
 
             # ---------------- Amenities ----------------
+
             requested = intent.get("amenities", [])
 
             if requested:
 
                 amenities = [
-                    x.strip().lower()
-                    for x in str(bus.get("Amenities", "")).split(",")
+                    item.strip().lower()
+                    for item in str(
+                        bus.get("Amenities", "")
+                    ).split(",")
                 ]
 
-                ok = True
-
-                for item in requested:
-                    if item.lower() not in amenities:
-                        ok = False
-                        break
-
-                if not ok:
+                if not all(
+                    amenity.lower() in amenities
+                    for amenity in requested
+                ):
                     continue
 
             # ---------------- Fare ----------------
+
             fare = safe_float(bus.get("Fare"))
 
             if (
@@ -266,39 +285,53 @@ class BusSearchEngine:
                 continue
 
             # ---------------- Seats ----------------
+
             if intent.get("min_seats") is not None:
-                seats = safe_int(bus.get("Available_Seats"))
+
+                seats = safe_int(
+                    bus.get("Available_Seats")
+                )
 
                 if seats < intent["min_seats"]:
                     continue
 
             # ---------------- Rating ----------------
+
             if intent.get("min_rating") is not None:
 
-                rating = safe_float(bus.get("Rating"))
+                rating = safe_float(
+                    bus.get("Rating")
+                )
 
                 if rating < intent["min_rating"]:
                     continue
 
             # ---------------- Time ----------------
+
             if intent.get("time"):
 
-                departure = str(bus.get("Departure_Time", ""))
+                departure = str(
+                    bus.get("Departure_Time", "")
+                )
 
-                if intent["time"] == "night":
-                    if not is_night_bus(departure):
-                        continue
+                if intent["time"] == "morning":
 
-                elif intent["time"] == "morning":
                     if not is_morning_bus(departure):
                         continue
 
                 elif intent["time"] == "afternoon":
+
                     if not is_afternoon_bus(departure):
                         continue
 
                 elif intent["time"] == "evening":
+
                     if not is_evening_bus(departure):
+                        continue
+
+                elif intent["time"] == "night":
+
+                    if not is_night_bus(departure):
                         continue
 
             filtered.append(bus)
@@ -309,7 +342,11 @@ class BusSearchEngine:
     # Rank Results
     # -----------------------------------------------------
 
-    def _rank_results(self, buses, intent):
+    def _rank_results(
+        self,
+        buses,
+        intent,
+    ):
         """
         Apply ranking algorithm.
         """
@@ -324,10 +361,14 @@ class BusSearchEngine:
         return buses
 
     # -----------------------------------------------------
-    # Sorting
+    # Sort Results
     # -----------------------------------------------------
 
-    def _sort_results(self, buses, intent):
+    def _sort_results(
+        self,
+        buses,
+        intent,
+    ):
         """
         Optional sorting.
         """
@@ -365,7 +406,7 @@ class BusSearchEngine:
         return buses
 
     # -----------------------------------------------------
-    # Pipeline
+    # Search Pipeline
     # -----------------------------------------------------
 
     def _process_candidates(
@@ -417,9 +458,13 @@ class BusSearchEngine:
     # Public Search API
     # -----------------------------------------------------
 
-    def search(self, query: str, intent: dict):
+    def search(
+        self,
+        query: str,
+        intent: dict,
+    ):
         """
-        Main Search Function
+        Main public search function.
 
         Parameters
         ----------
@@ -427,7 +472,7 @@ class BusSearchEngine:
             Original user query
 
         intent : dict
-            Parsed intent from intent.py
+            Parsed intent
 
         Returns
         -------
@@ -437,12 +482,10 @@ class BusSearchEngine:
         if not query:
             return []
 
-        results = self._process_candidates(
+        return self._process_candidates(
             query=query,
             intent=intent,
         )
-
-        return results
 
     # -----------------------------------------------------
     # Analytics
@@ -450,7 +493,7 @@ class BusSearchEngine:
 
     def analytics(self):
         """
-        Dataset analytics.
+        Return dataset analytics.
         """
 
         from analytics import BusAnalytics
@@ -462,22 +505,29 @@ class BusSearchEngine:
         return analytics.summary()
 
     # -----------------------------------------------------
-    # Dataset Info
+    # Dataset Information
     # -----------------------------------------------------
 
     def dataset_info(self):
+        """
+        Return dataset metadata.
+        """
 
         return {
-            "records": len(self.df),
+            "bus_records": len(self.df),
             "documents": len(self.documents),
             "vectors": self.index.ntotal,
+            "model": MODEL_NAME,
         }
 
     # -----------------------------------------------------
-    # Reload
+    # Reload Resources
     # -----------------------------------------------------
 
     def reload(self):
+        """
+        Reload dataset and FAISS index.
+        """
 
         self._load_csv()
         self._load_documents()
@@ -485,9 +535,9 @@ class BusSearchEngine:
 
         return True
 
-# ==========================================================
-# Testing
-# ==========================================================
+# =========================================================
+# Command Line Testing
+# =========================================================
 
 if __name__ == "__main__":
 
@@ -497,48 +547,58 @@ if __name__ == "__main__":
 
     print("\n")
     print("=" * 70)
-    print("Tamil Nadu Private OmniBus AI Search Engine")
+    print("Tamil Nadu Private OmniBus AI Search Engine V8")
     print("=" * 70)
+    print("Type 'exit' to quit.\n")
 
     while True:
 
-        query = input("\nSearch Bus > ")
+        query = input("Search Bus > ").strip()
 
         if query.lower() in ["exit", "quit"]:
+            print("Goodbye!")
             break
 
-        intent = analyze_query(query)
+        if not query:
+            continue
 
-        results = engine.search(
-            query,
-            intent,
-        )
+        try:
 
-        print("\n")
-        print("=" * 70)
-        print(f"Results Found : {len(results)}")
-        print("=" * 70)
+            intent = analyze_query(query)
 
-        for i, bus in enumerate(results[:5], start=1):
-
-            print(
-                f"""
-{i}.
-
-Operator  : {bus['Operator']}
-Route     : {bus['From_City']} -> {bus['To_City']}
-Bus       : {bus['Bus_Name']}
-Type      : {bus['Bus_Type']}
-Departure : {bus['Departure_Time']}
-Arrival   : {bus['Arrival_Time']}
-Fare      : ₹{bus['Fare']}
-Rating    : {bus['Rating']}
-Seats     : {bus['Available_Seats']}
-Amenities : {bus['Amenities']}
-Score     : {bus.get('Score',0)}
-"""
+            results = engine.search(
+                query=query,
+                intent=intent,
             )
 
-        if not results:
-            print("No matching buses found.")
+            print("\n" + "=" * 70)
+            print(f"Results Found : {len(results)}")
+            print("=" * 70)
+
+            if not results:
+                print("No matching buses found.\n")
+                continue
+
+            for i, bus in enumerate(results[:5], start=1):
+
+                print(f"""
+{i}. {bus.get("Operator", "")}
+------------------------------------------------------------
+Route      : {bus.get("From_City", "")} → {bus.get("To_City", "")}
+Bus        : {bus.get("Bus_Name", "")}
+Type       : {bus.get("Bus_Type", "")}
+Departure  : {bus.get("Departure_Time", "")}
+Arrival    : {bus.get("Arrival_Time", "")}
+Fare       : ₹{bus.get("Fare", "")}
+Rating     : {bus.get("Rating", "")}
+Seats      : {bus.get("Available_Seats", "")}
+Amenities  : {bus.get("Amenities", "")}
+""")
+
+        except KeyboardInterrupt:
+            print("\nInterrupted.")
+            break
+
+        except Exception as e:
+            print(f"\nError: {e}")
 
