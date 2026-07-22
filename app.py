@@ -1,48 +1,46 @@
 """
-app.py
 =========================================================
 Tamil Nadu Private OmniBus AI Chatbot
-Professional Gradio Interface
-Version 7.0
-Part 1 / 3
+app.py
+Version 8.0
+Part 1 / 4
 =========================================================
 """
 
-import os
 import gradio as gr
 
 from chatbot import BusChatbot
-
 from config import (
-    APP_NAME,
-    APP_VERSION,
     EXAMPLE_QUERIES,
     STYLE_FILE,
 )
 
-# =========================================================
-# Initialize Chatbot
-# =========================================================
+# -------------------------------------------------------
+# Load Chatbot
+# -------------------------------------------------------
 
 bot = BusChatbot()
 
-# =========================================================
-# Load Optional CSS
-# =========================================================
+# -------------------------------------------------------
+# Load Custom CSS
+# -------------------------------------------------------
 
 css = ""
 
-if os.path.exists(STYLE_FILE):
+try:
     with open(STYLE_FILE, "r", encoding="utf-8") as f:
         css = f.read()
+except:
+    css = ""
 
-# =========================================================
-# Chat Function
-# =========================================================
+# -------------------------------------------------------
+# Callback Functions
+# -------------------------------------------------------
 
 def chat(message, history):
 
-    history = history or []
+    if history is None:
+        history = []
 
     message = (message or "").strip()
 
@@ -51,14 +49,26 @@ def chat(message, history):
 
     try:
 
-        answer = bot.reply(message)
+        response = bot.chat(message)
 
     except Exception as e:
 
-        answer = (
-            "❌ An unexpected error occurred.\n\n"
-            f"{str(e)}"
-        )
+        response = f"❌ Error\n\n{str(e)}"
+
+    def chat(message, history):
+
+    if history is None:
+        history = []
+
+    message = (message or "").strip()
+
+    if not message:
+        return "", history
+
+    try:
+        response = bot.chat(message)
+    except Exception as e:
+        response = f"❌ Error\n\n{e}"
 
     history.append(
         {
@@ -70,362 +80,241 @@ def chat(message, history):
     history.append(
         {
             "role": "assistant",
-            "content": answer,
+            "content": response,
         }
     )
 
     return "", history
 
-# =========================================================
-# Quick Search
-# =========================================================
-
-def quick_search(query, history):
-
-    return chat(query, history)
-
-# =========================================================
-# Analytics Button
-# =========================================================
-
-def show_analytics(history):
-
-    history = history or []
-
-    try:
-
-        answer = bot.reply("dataset statistics")
-
-    except Exception as e:
-
-        answer = str(e)
-
-    history.append(
-        {
-            "role": "assistant",
-            "content": answer,
-        }
-    )
-
-    return history
-
-# =========================================================
-# Welcome Message
-# =========================================================
-
-def welcome():
-
-    return [
-        {
-            "role": "assistant",
-            "content": bot.greeting(),
-        }
-    ]
-
-# =========================================================
-# Clear Chat
-# =========================================================
 
 def clear_chat():
 
-    return "", welcome()
+    return []
 
-# =========================================================
-# About Information
-# =========================================================
 
-ABOUT_TEXT = f"""
-## ℹ️ About
+def show_analytics():
 
-**{APP_NAME}**
+    try:
 
-Version: **{APP_VERSION}**
+        info = bot.engine.dataset_info()
 
-### Features
+        analytics = bot.engine.analytics()
 
-✅ Semantic Search (FAISS)
+        text = f"""
+# Dataset Information
 
-✅ Natural Language Queries
+**Embedding Model**
+{info['model']}
 
-✅ Intent Detection
+**Bus Records**
+{info['bus_records']}
 
-✅ Conversation Memory
+**Semantic Documents**
+{info['documents']}
 
-✅ Route Search
+**FAISS Vectors**
+{info['vectors']}
 
-✅ Fare Filtering
+---
 
-✅ Bus Type Filtering
+# Analytics
 
-✅ Amenity Filtering
-
-✅ Time-based Search
-
-✅ Dataset Analytics
-
-### Built With
-
-- Python
-- FAISS
-- Sentence Transformers
-- Gradio
+{analytics}
 """
 
-# =========================================================
-# Gradio Interface
-# =========================================================
+    except Exception as e:
+
+        text = f"Unable to load analytics.\n\n{e}"
+
+    return text
+
+# -------------------------------------------------------
+# UI
+# -------------------------------------------------------
 
 with gr.Blocks(
-    title=f"{APP_NAME} {APP_VERSION}",
+
+    title="Tamil Nadu Private OmniBus AI Chatbot",
+
     css=css,
-    fill_height=True,
+
 ) as demo:
 
-    # -----------------------------------------------------
-    # Header
-    # -----------------------------------------------------
-
-    gr.Markdown(f"""
-# 🚌 {APP_NAME}
-
-### AI-Powered Semantic Search for Tamil Nadu Private OmniBus Services
+    gr.Markdown(
+        """
+# 🚌 Tamil Nadu Private OmniBus AI Chatbot
 
 Search buses using natural language.
 
-Examples:
+### Examples
 
 - Chennai to Madurai
-- Cheapest bus under ₹1000
-- Luxury Sleeper Bus
+- Cheapest bus
+- Luxury Sleeper
+- Volvo AC
 - Bus with WiFi
 - Night Bus
-- Best Rated Bus
-""")
-
-    # -----------------------------------------------------
-    # Main Layout
-    # -----------------------------------------------------
+- Bus under ₹1000
+"""
+    )
 
     with gr.Row():
 
-        # ==========================================
-        # Sidebar
-        # ==========================================
-
-        with gr.Column(scale=1, min_width=280):
-
-            gr.Markdown("## 🚀 Quick Actions")
-
-            analytics_btn = gr.Button(
-                "📊 Dataset Analytics",
-                variant="secondary",
-            )
-
-            clear_btn = gr.Button(
-                "🧹 Clear Chat",
-                variant="stop",
-            )
-
-            gr.Markdown("---")
-
-            gr.Markdown("""
-### 💡 Popular Searches
-
-Click any button below.
-""")
-
-        # ==========================================
-        # Chat Area
-        # ==========================================
-
         with gr.Column(scale=4):
 
-            chatbot = gr.Chatbot(
-                label="AI Bus Assistant",
-                type="messages",
-                height=600,
-                value=welcome(),
+        chatbot = gr.Chatbot(
+            type="messages",
+            height=520,
+            label="Conversation",
+            show_copy_button=True,
+    )
+            message = gr.Textbox(
+
+                label="Ask about buses",
+
+                placeholder="Example: Chennai to Madurai AC Sleeper under ₹1000",
+
+                lines=2,
+
             )
 
             with gr.Row():
 
-                textbox = gr.Textbox(
-                    placeholder="Ask anything about Tamil Nadu buses...",
-                    lines=1,
-                    scale=8,
-                )
-
                 send_btn = gr.Button(
-                    "🚀 Send",
+
+                    "Send",
+
                     variant="primary",
-                    scale=1,
+
                 )
 
-    # -----------------------------------------------------
-    # Quick Search Buttons
-    # -----------------------------------------------------
+                clear_btn = gr.Button(
 
-    gr.Markdown("## ⚡ Quick Search")
+                    "Clear Chat"
 
-    with gr.Row():
+                )
 
-        btn1 = gr.Button("📍 Chennai → Madurai")
-        btn2 = gr.Button("📍 Chennai → Bengaluru")
-        btn3 = gr.Button("📍 Coimbatore → Chennai")
-        btn4 = gr.Button("📍 Madurai → Trichy")
+        with gr.Column(scale=1):
 
-    with gr.Row():
+            analytics_btn = gr.Button(
 
-        btn5 = gr.Button("💰 Cheapest Bus")
-        btn6 = gr.Button("🛏 Luxury Sleeper")
-        btn7 = gr.Button("⭐ Best Rated")
-        btn8 = gr.Button("🚌 Volvo Bus")
+                "Dataset Analytics"
 
-    with gr.Row():
+            )
 
-        btn9 = gr.Button("🌙 Night Bus")
-        btn10 = gr.Button("📶 Bus with WiFi")
-        btn11 = gr.Button("❄️ AC Sleeper")
-        btn12 = gr.Button("💺 Seats Available")
+            analytics_output = gr.Markdown()
 
-    # -----------------------------------------------------
-    # Examples
-    # -----------------------------------------------------
+            gr.Markdown(
+                """
+### Quick Tips
 
-    gr.Markdown("## 📚 Example Queries")
+✔ Search by city
+
+✔ Search by operator
+
+✔ Search by fare
+
+✔ Search by amenities
+
+✔ Search by timing
+
+✔ Search by rating
+"""
+            )
 
     gr.Examples(
-        examples=[[x] for x in EXAMPLE_QUERIES],
-        inputs=textbox,
-        label="Try these example searches",
+
+        examples=[[q] for q in EXAMPLE_QUERIES],
+
+        inputs=message,
+
     )
 
-    # -----------------------------------------------------
-    # About Section
-    # -----------------------------------------------------
+    # -------------------------------------------------------
+    # Event Handlers
+    # -------------------------------------------------------
 
-    gr.Markdown("---")
-
-    with gr.Accordion(
-        "ℹ️ About This Project",
-        open=False,
-    ):
-
-        gr.Markdown(ABOUT_TEXT)
-
-# =========================================================
-# Event Handlers
-# =========================================================
-
-# -----------------------------
-# Send Button
-# -----------------------------
-
-send_btn.click(
-    fn=chat,
-    inputs=[textbox, chatbot],
-    outputs=[textbox, chatbot],
-    show_progress="full",
-)
-
-# -----------------------------
-# Press Enter
-# -----------------------------
-
-textbox.submit(
-    fn=chat,
-    inputs=[textbox, chatbot],
-    outputs=[textbox, chatbot],
-    show_progress="full",
-)
-
-# -----------------------------
-# Analytics Button
-# -----------------------------
-
-analytics_btn.click(
-    fn=show_analytics,
-    inputs=[chatbot],
-    outputs=[chatbot],
-)
-
-# -----------------------------
-# Clear Chat
-# -----------------------------
-
-clear_btn.click(
-    fn=clear_chat,
-    outputs=[textbox, chatbot],
-)
-
-# =========================================================
-# Quick Search Buttons
-# =========================================================
-
-QUICK_SEARCHES = {
-    btn1: "Show buses from Chennai to Madurai",
-    btn2: "Show buses from Chennai to Bengaluru",
-    btn3: "Show buses from Coimbatore to Chennai",
-    btn4: "Show buses from Madurai to Trichy",
-    btn5: "Cheapest bus",
-    btn6: "Luxury Sleeper bus",
-    btn7: "Best rated bus",
-    btn8: "Volvo bus",
-    btn9: "Night bus",
-    btn10: "Bus with WiFi",
-    btn11: "AC Sleeper bus",
-    btn12: "Seats available",
-}
-
-for button, query in QUICK_SEARCHES.items():
-
-    button.click(
-        fn=quick_search,
+    send_btn.click(
+        fn=chat,
         inputs=[
-            gr.State(query),
+            message,
             chatbot,
         ],
         outputs=[
-            textbox,
+            message,
             chatbot,
         ],
-        show_progress="hidden",
+    )
+
+    message.submit(
+        fn=chat,
+        inputs=[
+            message,
+            chatbot,
+        ],
+        outputs=[
+            message,
+            chatbot,
+        ],
+    )
+
+    clear_btn.click(
+        fn=clear_chat,
+        outputs=chatbot,
+    )
+
+    analytics_btn.click(
+        fn=show_analytics,
+        outputs=analytics_output,
+    )
+
+    # -------------------------------------------------------
+    # Quick Examples
+    # -------------------------------------------------------
+
+    for query in EXAMPLE_QUERIES:
+
+        gr.Button(
+            query,
+            size="sm",
+        ).click(
+            fn=lambda q=query: q,
+            outputs=message,
+        )
+
+
+    # -------------------------------------------------------
+    # Footer
+    # -------------------------------------------------------
+
+    gr.Markdown(
+        """
+---
+
+### 🚀 Tamil Nadu Private OmniBus AI Chatbot
+
+Built with
+
+- Python
+- Gradio
+- FAISS
+- Sentence Transformers
+- Hugging Face Spaces
+
+Natural Language Bus Search using Semantic Search.
+"""
     )
 
 # =========================================================
-# Footer
-# =========================================================
-
-gr.Markdown(
-    f"""
----
-
-<center>
-
-### 🚌 {APP_NAME}
-
-**Version:** {APP_VERSION}
-
-Built using:
-
-🐍 Python • 🤖 Sentence Transformers • ⚡ FAISS • 🎨 Gradio
-
-© 2026 Tamil Nadu Private OmniBus AI Chatbot
-
-</center>
-"""
-)
-
-# =========================================================
-# Launch
+# Launch Application
 # =========================================================
 
 if __name__ == "__main__":
 
+    demo.queue()
+
     demo.launch(
-        share=True,
-        show_error=True,
+        share=False,
+        debug=True,
     )
-
-
 
