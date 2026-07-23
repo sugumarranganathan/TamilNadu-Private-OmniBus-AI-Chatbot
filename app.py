@@ -1,6 +1,10 @@
 """
+app.py
+=========================================================
 Tamil Nadu Private OmniBus AI Chatbot
-Improved app.py (Gradio 5.x)
+Gemini + FAISS + Gradio
+Version 10.0
+=========================================================
 """
 
 import os
@@ -9,121 +13,174 @@ import gradio as gr
 from chatbot import BusChatbot
 from config import STYLE_FILE, EXAMPLE_QUERIES
 
+# ==========================================================
+# Initialize Chatbot
+# ==========================================================
+
 bot = BusChatbot()
 
+# ==========================================================
+# Load CSS
+# ==========================================================
+
 css = ""
+
 if os.path.exists(STYLE_FILE):
     with open(STYLE_FILE, "r", encoding="utf-8") as f:
         css = f.read()
 
+# ==========================================================
+# Chat Function
+# ==========================================================
 
-def chat(message, history):
-    """Gradio 5.x tuple-compatible callback."""
+def respond(message, history):
+
     history = history or []
 
-    if not str(message).strip():
+    if not message.strip():
         return "", history
 
     try:
-        response = bot.reply(message)   # <-- use reply(), not chat()
+        answer = bot.reply(message)
     except Exception as e:
-        response = f"❌ {e}"
+        answer = f"❌ {e}"
 
-    # Tuple format expected by Chatbot(type="tuples")
-    history.append((message, response))
+    history.append(
+        {"role": "user", "content": message}
+    )
+
+    history.append(
+        {"role": "assistant", "content": answer}
+    )
+
     return "", history
 
+
+# ==========================================================
+# Clear Chat
+# ==========================================================
 
 def clear_chat():
     return []
 
 
+# ==========================================================
+# Analytics
+# ==========================================================
+
 def show_analytics():
+
     try:
+
         info = bot.engine.dataset_info()
-        analytics = bot.engine.analytics()
+        stats = bot.engine.analytics()
 
         return f"""
-# Dataset Information
+# 📊 Dataset Analytics
 
-**Embedding Model:** {info["model"]}
+### Embedding Model
+{info["model"]}
 
-**Bus Records:** {info["bus_records"]}
+### Bus Records
+{info["bus_records"]}
 
-**Semantic Documents:** {info["documents"]}
+### Semantic Documents
+{info["documents"]}
 
-**FAISS Vectors:** {info["vectors"]}
+### FAISS Vectors
+{info["vectors"]}
 
 ---
 
-# Analytics
-
-{analytics}
+{stats}
 """
+
     except Exception as e:
+
         return f"❌ {e}"
 
 
+# ==========================================================
+# Gradio UI
+# ==========================================================
+
 with gr.Blocks(
-    title="Tamil Nadu Private OmniBus AI Chatbot",
+    title="Tamil Nadu Private OmniBus AI",
     css=css,
+    theme=gr.themes.Soft(),
 ) as demo:
 
-    gr.Markdown("# 🚌 Tamil Nadu Private OmniBus AI Chatbot")
+    gr.Markdown(
+        """
+# 🚌 Tamil Nadu Private OmniBus AI Assistant
+
+Search buses intelligently using AI.
+"""
+    )
 
     with gr.Row():
 
         with gr.Column(scale=4):
 
             chatbot = gr.Chatbot(
-                type="tuples",
-                label="Bus Assistant",
-                height=520,
-                
+                type="messages",
+                label="AI Bus Assistant",
+                height=600,
             )
 
-            message = gr.Textbox(
-                placeholder="Example: Chennai to Madurai AC Sleeper under ₹1000",
+            msg = gr.Textbox(
+                placeholder="Example: Cheapest AC Sleeper bus from Chennai to Madurai",
                 lines=2,
             )
 
             with gr.Row():
-                send_btn = gr.Button("Send", variant="primary")
-                clear_btn = gr.Button("🧹 Clear Chat")
+
+                send = gr.Button(
+                    "🔍 Search",
+                    variant="primary",
+                )
+
+                clear = gr.Button("🧹 Clear")
 
             gr.Examples(
-                examples=[[q] for q in EXAMPLE_QUERIES],
-                inputs=message,
+                examples=[[x] for x in EXAMPLE_QUERIES],
+                inputs=msg,
             )
 
         with gr.Column(scale=1):
-            analytics_btn = gr.Button("📊 Dataset Analytics")
-            analytics_output = gr.Markdown()
 
-    send_btn.click(
-        fn=chat,
-        inputs=[message, chatbot],
-        outputs=[message, chatbot],
+            analytics_btn = gr.Button("📊 Analytics")
+
+            analytics_md = gr.Markdown()
+
+    send.click(
+        respond,
+        inputs=[msg, chatbot],
+        outputs=[msg, chatbot],
     )
 
-    message.submit(
-        fn=chat,
-        inputs=[message, chatbot],
-        outputs=[message, chatbot],
+    msg.submit(
+        respond,
+        inputs=[msg, chatbot],
+        outputs=[msg, chatbot],
     )
 
-    clear_btn.click(
-        fn=clear_chat,
+    clear.click(
+        clear_chat,
         outputs=chatbot,
     )
 
     analytics_btn.click(
-        fn=show_analytics,
-        outputs=analytics_output,
+        show_analytics,
+        outputs=analytics_md,
     )
+
+# ==========================================================
+# Launch
+# ==========================================================
 
 if __name__ == "__main__":
 
     demo.queue()
 
-    
+    demo.launch()
