@@ -8,6 +8,7 @@ Version 10.0
 """
 
 import os
+import spaces
 import gradio as gr
 
 from chatbot import BusChatbot
@@ -33,6 +34,7 @@ if os.path.exists(STYLE_FILE):
 # Chat Function
 # ==========================================================
 
+@spaces.GPU
 def respond(message, history):
 
     history = history or []
@@ -46,11 +48,17 @@ def respond(message, history):
         answer = f"❌ {e}"
 
     history.append(
-        {"role": "user", "content": message}
+        {
+            "role": "user",
+            "content": message,
+        }
     )
 
     history.append(
-        {"role": "assistant", "content": answer}
+        {
+            "role": "assistant",
+            "content": answer,
+        }
     )
 
     return "", history
