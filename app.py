@@ -79,7 +79,7 @@ with gr.Blocks(
                 type="tuples",
                 label="Bus Assistant",
                 height=520,
-                show_copy_button=True,
+                
             )
 
             message = gr.Textbox(
@@ -126,4 +126,4 @@ if __name__ == "__main__":
 
     demo.queue()
 
-    demo.launch(share=True)
+    
