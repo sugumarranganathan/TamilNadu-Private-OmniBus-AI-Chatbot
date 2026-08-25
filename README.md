@@ -4,6 +4,10 @@ A professional AI-powered chatbot for searching Tamil Nadu private Omni buses us
 
 ---
 
+https://colab.research.google.com/drive/12x7512A0Yoydvs-msGvGUQueNlpnZ7fl#scrollTo=GvctXETG9DFu
+
+
+
 ## 🚀 Features
 
 - 🔍 Semantic bus search using FAISS
